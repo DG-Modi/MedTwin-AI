@@ -1,7 +1,7 @@
 """Pydantic schemas for data validation and API serialization."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any, Union
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -87,5 +87,28 @@ class ConversationResponse(BaseModel):
     title: str
     created_at: datetime
     messages: List[ChatMessageResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChatRequest(BaseModel):
+    """Schema for incoming chat messages to POST /api/chat."""
+
+    user_id: Any = Field(..., description="Unique user or patient identifier (string or integer)")
+    session_id: str = Field(..., min_length=1, max_length=128, description="Chat session identifier")
+    message: str = Field(..., min_length=1, max_length=2000, description="User's medical query")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ChatResponse(BaseModel):
+    """Schema for returning structured chat response from POST /api/chat."""
+
+    session_id: str
+    answer: str
+    sources: List[RetrievedSource] = Field(default_factory=list)
+    disclaimer: str
+    cached: bool = False
+    is_emergency: bool = False
 
     model_config = ConfigDict(from_attributes=True)

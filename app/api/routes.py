@@ -11,6 +11,8 @@ from app.db.schemas import (
     UserProfileUpdate,
     UserProfileResponse,
     RetrievedSource,
+    ChatRequest,
+    ChatResponse,
 )
 from app.core.digital_twin import (
     get_profile,
@@ -18,7 +20,9 @@ from app.core.digital_twin import (
     list_profiles,
     format_twin_context,
 )
+from app.core.cache import get_cache
 from app.rag.pipeline import get_rag_pipeline
+from app.services.chat_service import ChatService, get_chat_service
 
 router = APIRouter()
 
@@ -115,3 +119,19 @@ def list_all_profiles(
 ):
     """Lists registered patient Digital Twin profiles."""
     return list_profiles(db, limit=limit)
+
+
+@router.post("/api/chat", response_model=ChatResponse, tags=["Chat"])
+async def chat_endpoint(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    service: ChatService = Depends(get_chat_service),
+):
+    """Orchestrates an end-to-end medical chat interaction with safety guardrails, Digital Twin, and caching."""
+    return await service.process_chat(db=db, request=request)
+
+
+@router.get("/api/cache/stats", tags=["System"])
+def get_cache_telemetry():
+    """Returns query cache performance metrics."""
+    return get_cache().stats()
