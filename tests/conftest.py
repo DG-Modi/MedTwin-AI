@@ -1,5 +1,9 @@
 """Shared test fixtures for MedTwin AI automated testing suite."""
 
+import os
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 import io
 from typing import Dict, Any, List, Generator
 import numpy as np

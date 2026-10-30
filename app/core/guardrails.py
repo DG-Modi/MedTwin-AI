@@ -304,8 +304,7 @@ def check_drug_interactions(
                 "clinical_warning": (
                     "🚨 **CLINICAL DRUG INTERACTION DETECTED**: Your Digital Twin profile is taking **Lisinopril** (ACE Inhibitor). "
                     "Taking **Ibuprofen (NSAID)** with ACE inhibitors can reduce the blood-pressure lowering effect "
-                    "and can increase the risk of acute kidney injury (AKI) and fluid retention. "
-                    "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
+                    "and can increase the risk of acute kidney injury (AKI) and fluid retention."
                 ),
             })
 
@@ -320,8 +319,7 @@ def check_drug_interactions(
                 "clinical_warning": (
                     "⚠️ **CLINICAL CONTRAINDICATION**: You are taking **Metformin** for diabetes. "
                     "NSAIDs like **Ibuprofen** can cause acute decreases in renal function, which can increase the risk of "
-                    "Metformin accumulation and metabolic complications. "
-                    "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
+                    "Metformin accumulation and metabolic complications."
                 ),
             })
 
@@ -337,7 +335,7 @@ def check_drug_interactions(
                 "clinical_warning": (
                     "⚠️ **CONTRAINDICATION ALERT**: Your Digital Twin profile records **Asthma / NSAID sensitivity**. "
                     "In patients with asthma or aspirin sensitivity, NSAIDs like Ibuprofen can provoke bronchospasms "
-                    "and acute respiratory distress. Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
+                    "and acute respiratory distress."
                 ),
             })
 
@@ -351,8 +349,7 @@ def check_drug_interactions(
                 "mechanism": "Sodium and fluid retention via renal prostaglandin inhibition.",
                 "clinical_warning": (
                     "⚠️ **HYPERTENSION WARNING**: Your Digital Twin profile documents **Hypertension**. "
-                    "Regular or high-dose NSAID use (such as Ibuprofen) promotes renal sodium retention and can increase the risk of elevated blood pressure. "
-                    "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
+                    "Regular or high-dose NSAID use (such as Ibuprofen) promotes renal sodium retention and can increase the risk of elevated blood pressure."
                 ),
             })
 
@@ -470,7 +467,7 @@ def post_process_safety(
         sections.append("### ⚠️ Interaction Alerts:")
         for w in interaction_warnings:
             sections.append(f"- {w['clinical_warning']}")
-        sections.append("- **Safer Alternatives**: Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you.")
+        sections.append("**What you can do**: Ask your doctor or pharmacist whether acetaminophen is a safer option for you.")
         sections.append("---")
 
     if allergy_warning:

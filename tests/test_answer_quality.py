@@ -89,6 +89,9 @@ async def test_ibuprofen_query_with_alex_twin_triggers_acei_and_metformin_rules(
     # 4. Phrased alternatives as "ask your doctor or pharmacist whether ... is a safer option for you"
     assert "ask your doctor or pharmacist whether" in answer.lower()
     assert "safer option for you" in answer.lower()
+    assert answer.lower().count("ask your doctor or pharmacist whether acetaminophen is a safer option for you") == 1
+    assert "**What you can do**: Ask your doctor or pharmacist whether acetaminophen is a safer option for you." in answer
+    assert "Safer Alternatives" not in answer
 
     # 5. One-line verdict at the top
     assert answer.startswith("**Verdict**:")

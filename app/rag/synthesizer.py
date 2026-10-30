@@ -131,31 +131,26 @@ def synthesize_grounded_response(
         if has_ace_inhibitor:
             response_blocks.append(
                 "- **Hypertension & ACE Inhibitors (Lisinopril)**: Ibuprofen directly antagonizes the antihypertensive "
-                "effect of Lisinopril and can increase the risk of acute kidney injury. "
-                "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you. [1]"
+                "effect of Lisinopril and can increase the risk of acute kidney injury. [1]"
             )
         if has_metformin:
             response_blocks.append(
                 "- **Diabetes & Metformin**: Renal impairment induced by Ibuprofen can increase the risk of "
-                "Metformin accumulation and metabolic complications. "
-                "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you. [1]"
+                "Metformin accumulation and metabolic complications. [1]"
             )
         if has_asthma:
             response_blocks.append(
                 "- **Asthma / Respiratory Sensitivity**: In patients with asthma or aspirin sensitivity, "
-                "NSAIDs like Ibuprofen can trigger bronchospasms. "
-                "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you. [1]"
+                "NSAIDs like Ibuprofen can trigger bronchospasms. [1]"
             )
         if has_hypertension and not has_ace_inhibitor:
             response_blocks.append(
-                "- **Hypertension**: NSAID use promotes sodium retention and can increase the risk of elevated blood pressure. "
-                "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you. [1]"
+                "- **Hypertension**: NSAID use promotes sodium retention and can increase the risk of elevated blood pressure. [1]"
             )
 
-        # Safer Alternatives bullet
+        # Single What you can do line
         response_blocks.append(
-            "- **Safer Alternatives**: For mild to moderate pain or headache, "
-            "ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you. [1]"
+            "**What you can do**: Ask your doctor or pharmacist whether acetaminophen is a safer option for you."
         )
 
         # Only include COX-1/COX-2 mechanism if explicitly asked

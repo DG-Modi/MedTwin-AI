@@ -671,7 +671,7 @@ with tab_chat:
                             s_name = step.get("name", "Stage")
                             s_summary = step.get("summary", "")
                             s_status = step.get("status", "completed")
-                            status_icon = "🟢" if s_status in ["completed", "passed"] else ("🚨" if s_status in ["bypassed", "flagged"] else ("❌" if s_status == "failed" else "ℹ️"))
+                            status_icon = "🟢" if s_status in ["completed", "passed"] else ("🚨" if s_status in ["bypassed", "flagged"] else ("❌" if s_status == "failed" else ("📖" if s_status == "retrieval-only" else "ℹ️")))
                             st.markdown(f"**{status_icon} {s_name}**")
                             st.caption(s_summary)
 

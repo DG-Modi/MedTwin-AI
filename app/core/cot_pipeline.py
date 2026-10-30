@@ -38,6 +38,17 @@ from app.llm.prompts import build_medical_prompt
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_GUIDELINE_URLS: Dict[str, str] = {
+    "nsaid_ibuprofen_safety.md": "https://www.ncbi.nlm.nih.gov/books/NBK537074/",
+    "hypertension.md": "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000065",
+    "type_2_diabetes.md": "https://diabetesjournals.org/care/article/46/Supplement_1/S1/148530/",
+    "asthma_management.md": "https://www.nhlbi.nih.gov/health-topics/asthma-management-guidelines",
+    "chest_pain_emergency.md": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001029",
+    "migraine_headaches.md": "https://headachejournal.onlinelibrary.wiley.com/doi/10.1111/head.14153",
+    "common_cold_vs_flu.md": "https://www.cdc.gov/flu/symptoms/cold-flu.htm",
+    "dash_diet.md": "https://www.nhlbi.nih.gov/education/dash-eating-plan",
+}
+
 
 class ChainOfThoughtPipeline:
     """Executes the 7-stage clinical reasoning pipeline with telemetry and safety guarantees."""
@@ -282,10 +293,54 @@ class ChainOfThoughtPipeline:
                 )
                 used_grounded_engine = True
             else:
-                raw_answer = (
+                honest_error = (
                     "The local model is unavailable. Unable to generate an AI response at this time. "
                     "Please ensure the local Ollama LLM service is running and accessible."
                 )
+
+                allergies_list = profile_dict.get("allergies", [])
+                if allergies_list:
+                    allergies_str = ", ".join(allergies_list)
+                    allergy_line = f"**Allergy Check**: No conflict found with {allergies_str}."
+                else:
+                    allergy_line = "**Allergy Check**: No drug allergy conflicts recorded in your profile."
+
+                retrieval_blocks = [honest_error, "", allergy_line, ""]
+
+                if interaction_warnings:
+                    retrieval_blocks.append("### ⚠️ Interaction Alerts:")
+                    for w in interaction_warnings:
+                        retrieval_blocks.append(f"- {w['clinical_warning']}")
+                    retrieval_blocks.append(
+                        "**What you can do**: Ask your doctor or pharmacist whether acetaminophen is a safer option for you."
+                    )
+                    retrieval_blocks.append("")
+
+                retrieval_blocks.append("### Model unavailable: showing guideline excerpts only")
+                if retrieved_chunks:
+                    for chunk in retrieved_chunks[:settings.RAG_TOP_K]:
+                        c_src = chunk.get("source", "knowledge_base.md")
+                        c_title = chunk.get("title") or c_src
+                        c_score = float(chunk.get("score", 0.0))
+                        c_url = chunk.get("url") or DEFAULT_GUIDELINE_URLS.get(c_src, "https://www.ncbi.nlm.nih.gov/")
+
+                        raw_text = chunk.get("text", "").strip()
+                        filtered_lines = [
+                            ln for ln in raw_text.split("\n")
+                            if "ask your doctor or pharmacist whether" not in ln.lower()
+                            and "safer alternatives" not in ln.lower()
+                        ]
+                        cleaned_text = " ".join(" ".join(filtered_lines).split())
+                        if len(cleaned_text) > 280:
+                            cleaned_text = cleaned_text[:277] + "..."
+
+                        retrieval_blocks.append(
+                            f"- **{c_title}** (File: `{c_src}`, URL: {c_url}, Score: {c_score:.2f}):\n  > {cleaned_text}"
+                        )
+                else:
+                    retrieval_blocks.append("- No matching clinical guideline excerpts retrieved from the knowledge base.")
+
+                raw_answer = "\n".join(retrieval_blocks)
                 llm_failed = True
         timings["llm_ms"] = round((time.time() - t_llm_0) * 1000, 2)
 
@@ -293,10 +348,16 @@ class ChainOfThoughtPipeline:
         if llm_failed:
             steps.append(ReasoningStep(
                 stage="llm_generation",
-                name="6. Structured Clinical Answer Synthesis",
-                status="failed",
-                summary=f"The local model is unavailable. Ollama service call failed ({timings['llm_ms']:.0f}ms).",
-                details={"model": model_str, "status": "unavailable", "llm_ms": timings["llm_ms"]},
+                name="6. Structured Clinical Answer Synthesis (Retrieval-Only)",
+                status="retrieval-only",
+                summary="The local model is unavailable. Switched to retrieval-only mode: displaying top retrieved guideline excerpts.",
+                details={
+                    "model": model_str,
+                    "status": "retrieval-only",
+                    "retrieval_only": True,
+                    "chunks_displayed": min(len(retrieved_chunks), settings.RAG_TOP_K),
+                    "llm_ms": timings["llm_ms"],
+                },
             ))
         elif used_grounded_engine:
             steps.append(ReasoningStep(
