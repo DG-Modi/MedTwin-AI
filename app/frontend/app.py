@@ -354,32 +354,135 @@ def check_cache_telemetry() -> Dict[str, Any]:
 
 
 def call_chat_api(user_id: str, session_id: str, message: str) -> Dict[str, Any]:
+    # 1. Attempt FastAPI backend call first
     try:
         payload = {"user_id": user_id, "session_id": session_id, "message": message}
         resp = requests.post(f"{API_BASE_URL}/api/chat", json=payload, timeout=60)
         if resp.status_code == 200:
             return resp.json()
-        return {"answer": f"API Error ({resp.status_code}): {resp.text}", "sources": [], "cached": False, "is_emergency": False, "reasoning_steps": []}
+        elif resp.status_code != 404:
+            return {"answer": f"API Error ({resp.status_code}): {resp.text}", "sources": [], "cached": False, "is_emergency": False, "reasoning_steps": []}
+    except Exception:
+        pass
+
+    # 2. In-process direct fallback via ChatService (guarantees chat + DB persistence even in standalone Streamlit mode)
+    try:
+        import asyncio
+        from app.db.session import SessionLocal, init_db
+        from app.db.schemas import ChatRequest
+        from app.services.chat_service import get_chat_service
+        init_db()
+        service = get_chat_service()
+        req = ChatRequest(user_id=user_id, session_id=session_id, message=message)
+        with SessionLocal() as db:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        res = pool.submit(asyncio.run, service.process_chat(db, req)).result()
+                else:
+                    res = loop.run_until_complete(service.process_chat(db, req))
+            except Exception:
+                res = asyncio.run(service.process_chat(db, req))
+            return res.model_dump()
     except Exception as ex:
-        return {"answer": f"Connection Error: Could not reach FastAPI backend at {API_BASE_URL} ({ex})", "sources": [], "cached": False, "is_emergency": False, "reasoning_steps": []}
+        return {"answer": f"Service Error: Could not process request ({ex})", "sources": [], "cached": False, "is_emergency": False, "reasoning_steps": []}
 
 
 def save_twin_profile(profile_dict: Dict[str, Any]) -> bool:
+    """Saves patient Digital Twin profile via FastAPI if online, with direct SQLite fallback."""
+    # 1. Try FastAPI backend first
     try:
-        resp = requests.post(f"{API_BASE_URL}/api/twin", json=profile_dict, timeout=5)
-        return resp.status_code == 200
+        resp = requests.post(f"{API_BASE_URL}/api/twin", json=profile_dict, timeout=3)
+        if resp.status_code == 200:
+            return True
     except Exception:
+        pass
+
+    # 2. Direct fallback to SQLite database (guarantees persistence in all deployment modes)
+    try:
+        from app.db.session import SessionLocal, init_db
+        from app.db.schemas import UserProfileCreate
+        from app.core.digital_twin import create_or_update_profile
+        init_db()
+        with SessionLocal() as db:
+            p_in = UserProfileCreate(**profile_dict)
+            create_or_update_profile(db, p_in)
+            return True
+    except Exception as e:
+        print(f"Direct DB save error: {e}")
         return False
 
 
-def get_twin_context(user_id: str) -> str:
+def load_twin_profile(user_id: str) -> Optional[Dict[str, Any]]:
+    """Loads a patient profile by user_id via FastAPI if online, or directly from SQLite."""
+    # 1. Try FastAPI backend
     try:
-        resp = requests.get(f"{API_BASE_URL}/api/twin/{user_id}/context", timeout=3)
+        resp = requests.get(f"{API_BASE_URL}/api/twin/{user_id}", timeout=2)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+
+    # 2. Direct fallback to SQLite database
+    try:
+        from app.db.session import SessionLocal
+        from app.core.digital_twin import get_profile
+        with SessionLocal() as db:
+            p = get_profile(db, user_id)
+            if p:
+                return {
+                    "user_id": p.user_id,
+                    "name": p.name or "",
+                    "age": p.age or 30,
+                    "gender": p.gender or "Male",
+                    "allergies": p.allergies or [],
+                    "chronic_conditions": p.chronic_conditions or [],
+                    "current_medications": p.current_medications or [],
+                    "lifestyle_notes": p.lifestyle_notes or "",
+                }
+    except Exception as e:
+        print(f"Direct DB load notice: {e}")
+    return None
+
+
+def get_twin_context(user_id: str) -> str:
+    """Retrieves formatted twin context via FastAPI if online, or directly from SQLite."""
+    try:
+        resp = requests.get(f"{API_BASE_URL}/api/twin/{user_id}/context", timeout=2)
         if resp.status_code == 200:
             return resp.json().get("formatted_context", "")
     except Exception:
         pass
+
+    try:
+        from app.db.session import SessionLocal
+        from app.core.digital_twin import get_profile, format_twin_context
+        with SessionLocal() as db:
+            p = get_profile(db, user_id)
+            if p:
+                return format_twin_context(p)
+    except Exception:
+        pass
     return ""
+
+
+def get_db_stats() -> Dict[str, int]:
+    """Retrieves live record counts from the database."""
+    try:
+        from app.db.session import SessionLocal, init_db
+        from app.db.models import UserProfile, Conversation, ChatMessage, QueryLog
+        init_db()
+        with SessionLocal() as db:
+            return {
+                "profiles": db.query(UserProfile).count(),
+                "conversations": db.query(Conversation).count(),
+                "messages": db.query(ChatMessage).count(),
+                "query_logs": db.query(QueryLog).count(),
+            }
+    except Exception:
+        return {"profiles": 0, "conversations": 0, "messages": 0, "query_logs": 0}
 
 
 # Header status check
@@ -387,6 +490,7 @@ health_info = check_backend_status()
 backend_online = health_info.get("status") == "healthy"
 chunks_count = health_info.get("vector_store_chunks", 29)
 active_model = health_info.get("active_model", settings.OLLAMA_MODEL)
+db_name = "SQLite (medtwin.db)" if "sqlite" in settings.DATABASE_URL.lower() else "PostgreSQL"
 
 # Clean disclaimer text (stripping leading redundant 'Disclaimer:' if present)
 clean_disclaimer_text = settings.MEDICAL_DISCLAIMER
@@ -402,7 +506,8 @@ st.markdown(f"""
     </div>
     <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
         <span class="brand-badge">🤖 Active Model: <strong>{active_model}</strong></span>
-        <span class="brand-badge">⚡ {'FastAPI Online' if backend_online else 'Standby'}</span>
+        <span class="brand-badge">💾 DB: <strong>{db_name}</strong></span>
+        <span class="brand-badge">⚡ {'FastAPI Online' if backend_online else 'Direct DB Mode'}</span>
         <span class="brand-badge">📚 {chunks_count} Chunks Indexed</span>
         <span class="brand-badge">🎙️ Whisper-tiny Ready</span>
     </div>
@@ -423,13 +528,23 @@ st.markdown(f"""
 # ==============================================================================
 with st.sidebar:
     st.markdown("### 👤 Enter Your Health Profile")
-    st.caption("Enter your information below to personalize your consultation and drug safety checks.")
+    st.caption("Personalize clinical consultation and drug safety checks stored in database.")
+
+    # Auto-load existing saved profile on initial page visit
+    if "twin_initialized" not in st.session_state:
+        st.session_state["twin_initialized"] = True
+        init_uid = st.session_state.get("twin_user_id", "user_001")
+        saved_init = load_twin_profile(init_uid)
+        if saved_init:
+            for k in ["name", "age", "gender", "allergies", "chronic_conditions", "current_medications", "lifestyle_notes"]:
+                if k in saved_init:
+                    st.session_state[f"twin_{k}"] = saved_init[k]
 
     user_id_val = st.text_input(
         "User / Patient ID",
         value=st.session_state.get("twin_user_id", "user_001"),
         placeholder="e.g. user_001",
-        help="Unique identifier for saving your profile in the database.",
+        help="Unique identifier for saving and loading your profile in the database.",
     )
     name_val = st.text_input(
         "Full Name",
@@ -480,9 +595,9 @@ with st.sidebar:
     conditions_list = [c.strip() for c in conditions_val.split(",") if c.strip()]
     meds_list = [m.strip() for m in meds_val.split(",") if m.strip()]
 
-    col_save, col_reload = st.columns(2)
+    col_save, col_load, col_reload = st.columns([1.1, 1.1, 0.9])
     with col_save:
-        if st.button("💾 Save My Profile", use_container_width=True, type="primary"):
+        if st.button("💾 Save", use_container_width=True, type="primary"):
             profile_payload = {
                 "user_id": user_id_val,
                 "name": name_val or "Anonymous User",
@@ -495,20 +610,56 @@ with st.sidebar:
             }
             for k, v in profile_payload.items():
                 st.session_state[f"twin_{k}"] = v
+            st.session_state["twin_user_id"] = user_id_val
             if save_twin_profile(profile_payload):
-                st.success("Profile saved to database!")
+                st.session_state["profile_status_msg"] = ("success", f"✅ Profile saved to database ({db_name}) for `{user_id_val}`!")
             else:
-                st.warning("Profile cached locally.")
+                st.session_state["profile_status_msg"] = ("warning", "⚠️ Profile cached in session memory.")
+            st.rerun()
+
+    with col_load:
+        if st.button("📥 Load", use_container_width=True):
+            loaded_p = load_twin_profile(user_id_val)
+            if loaded_p:
+                for k in ["name", "age", "gender", "allergies", "chronic_conditions", "current_medications", "lifestyle_notes"]:
+                    if k in loaded_p:
+                        st.session_state[f"twin_{k}"] = loaded_p[k]
+                st.session_state["twin_user_id"] = user_id_val
+                st.session_state["profile_status_msg"] = ("success", f"✅ Loaded profile for `{user_id_val}` from {db_name}!")
+            else:
+                st.session_state["profile_status_msg"] = ("info", f"ℹ️ No saved profile in {db_name} for `{user_id_val}`. Fill details and click Save.")
             st.rerun()
 
     with col_reload:
-        if st.button("🔄 Reset Form", use_container_width=True):
+        if st.button("🔄 Reset", use_container_width=True):
             st.session_state["twin_name"] = ""
+            st.session_state["twin_age"] = 30
+            st.session_state["twin_gender"] = "Male"
             st.session_state["twin_allergies"] = []
             st.session_state["twin_chronic_conditions"] = []
             st.session_state["twin_current_medications"] = []
             st.session_state["twin_lifestyle_notes"] = ""
+            st.session_state["profile_status_msg"] = ("info", "Form fields reset.")
             st.rerun()
+
+    if "profile_status_msg" in st.session_state:
+        msg_type, msg_text = st.session_state.pop("profile_status_msg")
+        if msg_type == "success":
+            st.success(msg_text)
+        elif msg_type == "warning":
+            st.warning(msg_text)
+        else:
+            st.info(msg_text)
+
+    # Live Database Statistics Widget
+    db_stats = get_db_stats()
+    st.markdown(f"""
+    <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: rgba(30, 41, 59, 0.6); border: 1px solid #334155; border-radius: 6px; font-size: 0.78rem; color: #94a3b8;">
+        🗄️ <strong>Database:</strong> {db_name}<br/>
+        👥 <strong>Profiles Stored:</strong> {db_stats['profiles']}<br/>
+        💬 <strong>Conversations:</strong> {db_stats['conversations']}
+    </div>
+    """, unsafe_allow_html=True)
 
     # Optional: Presets collapsed at bottom for convenience only
     with st.expander("⚡ Optional: Load a sample patient preset", expanded=False):
@@ -523,6 +674,7 @@ with st.sidebar:
                 for k, v in preset_info.items():
                     st.session_state[f"twin_{k}"] = v
                 save_twin_profile(preset_info)
+                st.session_state["profile_status_msg"] = ("success", f"✅ Loaded preset '{selected_preset_name}' and saved to {db_name}!")
                 st.rerun()
 
 
@@ -876,12 +1028,12 @@ with tab_analytics:
         </div>
         """, unsafe_allow_html=True)
     with chk3:
-        db_label = "Connected" if backend_online else "Standby (SQLite)"
+        db_label = f"Connected ({db_name})"
         st.markdown(f"""
         <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 8px; padding: 12px;">
             <div style="font-size: 0.8rem; color: #94A3B8;">🗄️ DATABASE CONNECTION</div>
-            <div style="font-size: 1.05rem; font-weight: 700; color: #38BDF8; margin-top: 4px;">{db_label}</div>
-            <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● Relational Session Active</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #38BDF8; margin-top: 4px;">{db_name}</div>
+            <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● {db_stats['profiles']} Profiles Persisted</div>
         </div>
         """, unsafe_allow_html=True)
     with chk4:
@@ -892,6 +1044,19 @@ with tab_analytics:
             <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● CPU Weights Loaded</div>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown(f"##### 🗄️ Database Storage Records ({db_name})")
+    d_stats = get_db_stats()
+    sd1, sd2, sd3, sd4 = st.columns(4)
+    with sd1:
+        st.metric("Patient Profiles", d_stats["profiles"])
+    with sd2:
+        st.metric("Consultation Sessions", d_stats["conversations"])
+    with sd3:
+        st.metric("Chat Messages Stored", d_stats["messages"])
+    with sd4:
+        st.metric("Query Logs Stored", d_stats["query_logs"])
 
     st.markdown("---")
     st.markdown("##### ⚡ Cache Telemetry (Two-Layer Caching)")
