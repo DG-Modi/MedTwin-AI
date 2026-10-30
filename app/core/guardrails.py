@@ -450,6 +450,19 @@ def post_process_safety(
         # Remove "Allergy Check" status line before inspecting text for actual contraindicated allergen mentions
         inspect_text = re.sub(r"(\*\*Allergy Check\*\*:|Allergy Check:)[^\n]*", "", cleaned, flags=re.IGNORECASE)
         allergy_warning = check_allergy_contraindications(inspect_text, allergies)
+        if allergy_warning:
+            flagged = []
+            for allergen in allergies:
+                c_all = allergen.strip().lower()
+                if c_all and re.search(r"\b" + re.escape(c_all) + r"\b", inspect_text.lower()):
+                    flagged.append(allergen.strip())
+            if flagged:
+                unflagged = [a for a in allergies if a.strip().lower() not in [f.lower() for f in flagged]]
+                if unflagged:
+                    reconciled_allergy = f"**Allergy Check**: Documented allergy alert for {', '.join(flagged)} (see alert above). No conflict found with {', '.join(unflagged)}."
+                else:
+                    reconciled_allergy = f"**Allergy Check**: Documented allergy alert for {', '.join(flagged)} (see alert above)."
+                cleaned = re.sub(r"(\*\*Allergy Check\*\*:|Allergy Check:)[^\n]*", reconciled_allergy, cleaned, flags=re.IGNORECASE)
 
         if query_text:
             interaction_warnings = check_drug_interactions(

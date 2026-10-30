@@ -299,7 +299,9 @@ class ChainOfThoughtPipeline:
                 )
 
                 allergies_list = profile_dict.get("allergies", [])
-                if allergies_list:
+                if allergy_conflict:
+                    allergy_line = allergy_conflict["alert"]
+                elif allergies_list:
                     allergies_str = ", ".join(allergies_list)
                     allergy_line = f"**Allergy Check**: No conflict found with {allergies_str}."
                 else:
