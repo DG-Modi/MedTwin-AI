@@ -32,7 +32,8 @@ from app.core.guardrails import (
 from app.core.digital_twin import get_profile, format_twin_context
 from app.rag.pipeline import RAGPipeline, get_rag_pipeline
 from app.rag.synthesizer import synthesize_grounded_response
-from app.llm.ollama_client import OllamaClient, get_llm_client
+from app.llm.base import LLMProvider
+from app.llm.factory import get_llm_provider
 from app.llm.prompts import build_medical_prompt
 
 logger = logging.getLogger(__name__)
@@ -44,11 +45,11 @@ class ChainOfThoughtPipeline:
     def __init__(
         self,
         rag_pipeline: Optional[RAGPipeline] = None,
-        llm_client: Optional[OllamaClient] = None,
+        llm_client: Optional[LLMProvider] = None,
         enable_grounded_fallback: Optional[bool] = None,
     ) -> None:
         self.rag = rag_pipeline or get_rag_pipeline()
-        self.llm = llm_client or get_llm_client()
+        self.llm = llm_client or get_llm_provider()
         self.enable_grounded_fallback = (
             enable_grounded_fallback
             if enable_grounded_fallback is not None
