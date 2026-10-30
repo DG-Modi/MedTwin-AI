@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     HF_MODEL: str = "meta-llama/Llama-3.2-3B-Instruct"
     HF_TIMEOUT_SECONDS: int = 30
     ENABLE_MOCK_LLM_FALLBACK: bool = False
-    ENABLE_GROUNDED_RAG_SYNTHESIZER: bool = False
+    ENABLE_GROUNDED_RAG_SYNTHESIZER: bool = True
 
     # Emergency Services Configuration
     EMERGENCY_NUMBERS: str = "112, 108, 911"

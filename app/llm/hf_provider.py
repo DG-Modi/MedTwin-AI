@@ -12,6 +12,9 @@ from app.llm.prompts import MEDICAL_SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 
+_UNSET = object()
+
+
 class HuggingFaceProvider(LLMProvider):
     """Communicates with the Hugging Face Inference API via HTTP/httpx."""
 
@@ -19,11 +22,14 @@ class HuggingFaceProvider(LLMProvider):
 
     def __init__(
         self,
-        token: Optional[str] = None,
+        token: Any = _UNSET,
         model: Optional[str] = None,
         timeout_seconds: Optional[int] = None,
     ) -> None:
-        self.token = token if token is not None else settings.HF_API_TOKEN
+        if token is _UNSET:
+            self.token = settings.HF_API_TOKEN
+        else:
+            self.token = token
         self.model = model or settings.HF_MODEL
         self.timeout = timeout_seconds or getattr(settings, "HF_TIMEOUT_SECONDS", 30)
 

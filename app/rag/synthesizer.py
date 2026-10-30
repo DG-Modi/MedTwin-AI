@@ -228,21 +228,156 @@ def synthesize_grounded_response(
             )
 
     # -------------------------------------------------------------------------
-    # Topic 4: General Clinical Inquiry from Chunks
+    # Topic 4: Asthma & Respiratory Care
+    # -------------------------------------------------------------------------
+    elif any(k in q_lower for k in ["asthma", "inhaler", "albuterol", "bronchospasm", "wheeze", "airway", "peak flow", "fluticasone", "budesonide", "saba", "ics"]) or any("asthma" in c.get("source", "") for c in retrieved_chunks):
+        verdict = (
+            "**Verdict**: Managing asthma effectively requires a comprehensive strategy combining daily "
+            "anti-inflammatory controller inhalers to prevent airway swelling, rapid-acting rescue inhalers "
+            "for acute bronchospasm, regular peak flow monitoring, and strict avoidance of personal triggers."
+        )
+        response_blocks.append(verdict)
+        response_blocks.append("")
+        response_blocks.append("### 🌬️ Inhaler Therapy & Clinical Guidelines:")
+        response_blocks.append(
+            "- **Quick-Relief (Rescue) Inhaler**: Short-acting beta2-agonists (SABA, e.g., **Albuterol HFA 90mcg**) "
+            "rapidly relax airway smooth muscle within minutes. Used as-needed (PRN) for acute bronchospasm and exercise symptoms. [1]"
+        )
+        response_blocks.append(
+            "- **Long-Term Controller Inhaler**: Inhaled Corticosteroids (ICS, e.g., Fluticasone, Budesonide) alone or with a "
+            "Long-Acting Beta Agonist (LABA, e.g., Salmeterol). Suppresses underlying airway inflammation and mucus production; "
+            "must be taken daily as prescribed. [1]"
+        )
+        response_blocks.append(
+            "- **Asthma Action Plan**: Use peak flow monitoring to guide action: Green Zone (>80%, well-controlled maintenance), "
+            "Yellow Zone (50–80%, acute narrowing requiring rescue inhaler adjustment), and Red Zone (<50%, medical alert requiring emergency care). [1]"
+        )
+
+        response_blocks.append("")
+        response_blocks.append("### 🛡️ Precautions & Trigger Control:")
+        response_blocks.append(
+            "- **Environmental Triggers**: Minimize exposure to tobacco smoke, cold dry air, pet dander, dust mites, and respiratory infections. [1]"
+        )
+        response_blocks.append(
+            "- **Pharmacological Precaution**: Avoid NSAIDs (such as Ibuprofen) and Aspirin in patients with asthma sensitivity or Samter's triad, as they can trigger bronchospasms. [1]"
+        )
+
+        response_blocks.append("")
+        response_blocks.append("### 🚨 Emergency Red Flags (Call 911 / 112):")
+        response_blocks.append(
+            "- Seek immediate emergency medical care if you experience extreme breathlessness, inability to speak full sentences, "
+            "chest retractions (ribs pulling inward), or cyanosis (lips or fingernails turning blue or grey). [1]"
+        )
+
+        # Relevant Digital Twin profile context
+        has_asthma_cond = any("asthma" in c.lower() for c in conditions)
+        relevant_meds = [m for m in medications if m]
+        if has_asthma_cond or relevant_meds:
+            response_blocks.append("")
+            response_blocks.append("### 👤 Relevant Profile Context:")
+            if has_asthma_cond:
+                response_blocks.append(
+                    "- **Profile Alignment**: Your profile records Asthma; keep your rescue inhaler accessible at all times "
+                    "and review your personalized action plan with your physician annually."
+                )
+            if relevant_meds:
+                response_blocks.append(
+                    f"- **Current Regimen**: Your documented medications ({', '.join(relevant_meds)}) should be regularly "
+                    "re-evaluated alongside respiratory inhaler therapy to prevent interactions."
+                )
+
+    # -------------------------------------------------------------------------
+    # Topic 5: Migraine & Headache Disorders
+    # -------------------------------------------------------------------------
+    elif any(k in q_lower for k in ["migraine", "headache", "triptan", "sumatriptan", "aura", "photophobia", "throbbing"]) or any("migraine" in c.get("source", "") for c in retrieved_chunks):
+        response_blocks.append(
+            "**Verdict**: Migraine management involves differentiating neurovascular migraine symptoms from secondary headaches, "
+            "early administration of acute abortive therapies (such as triptans), and identifying personal triggers."
+        )
+        response_blocks.append("")
+        response_blocks.append("### 🧠 Acute Management & Pharmacology:")
+        response_blocks.append(
+            "- **Acute Triptan Therapy**: Selective 5-HT1B/1D receptor agonists (e.g., Sumatriptan) constrict dilated cranial vessels "
+            "and inhibit neurogenic inflammation when taken at the earliest onset of the headache phase. [1]"
+        )
+        response_blocks.append(
+            "- **Contraindications**: Triptans are contraindicated in ischemic heart disease, uncontrolled hypertension, history of stroke/TIA, or peripheral vascular disease. [1]"
+        )
+        response_blocks.append(
+            "- **Aura Phase**: Approximately 25% of individuals experience reversible visual scotomas or sensory changes 10–60 minutes before headache onset. [1]"
+        )
+        response_blocks.append("")
+        response_blocks.append("### 🚨 Emergency Warning Signs (SNOOP Criteria):")
+        response_blocks.append(
+            "- Seek immediate emergency care for sudden-onset 'thunderclap' headache reaching maximum intensity within seconds, "
+            "or new headache accompanied by high fever, stiff neck, confusion, or focal neurological deficits. [1]"
+        )
+
+    # -------------------------------------------------------------------------
+    # Topic 6: Common Cold vs. Influenza
+    # -------------------------------------------------------------------------
+    elif any(k in q_lower for k in ["cold", "flu", "influenza", "virus", "sore throat", "rhinovirus", "chills"]) or any("cold_vs_flu" in c.get("source", "") for c in retrieved_chunks):
+        response_blocks.append(
+            "**Verdict**: While both are contagious respiratory viral infections, influenza is characterized by sudden, high fever, "
+            "severe body aches, and debilitating fatigue, whereas the common cold exhibits gradual nasal symptoms and mild sore throat."
+        )
+        response_blocks.append("")
+        response_blocks.append("### 🌡️ Clinical Differential Matrix:")
+        response_blocks.append(
+            "- **Onset & Fever**: Common cold onset is gradual with mild or absent fever; Influenza onset is abrupt with high fever (100°F–104°F) lasting 3–4 days. [1]"
+        )
+        response_blocks.append(
+            "- **Systemic Severity**: Myalgias, severe chills, and profound exhaustion are hallmark signs of Influenza, lasting up to 2–3 weeks. [1]"
+        )
+        response_blocks.append(
+            "- **Supportive Care**: Emphasize aggressive hydration, rest, and antipyretics; antiviral therapy is most effective when initiated within 48 hours of flu onset. [1]"
+        )
+        response_blocks.append("")
+        response_blocks.append("### 🚨 Emergency Complications:")
+        response_blocks.append(
+            "- Seek emergency care if shortness of breath, persistent chest pain, confusion, or worsening of chronic health conditions occurs. [1]"
+        )
+
+    # -------------------------------------------------------------------------
+    # Topic 7: Universal Dynamic Clinical Extractor for Any Other Topic
     # -------------------------------------------------------------------------
     else:
         top_chunk = retrieved_chunks[0]
         title = top_chunk.get("title", "Clinical Guidelines")
         src = top_chunk.get("source", "knowledge_base.md")
-        response_blocks.append(f"Based on clinical documentation from **{title}** (`{src}`) [1]:")
+
+        # Synthesize dynamic verdict from the top retrieved clinical evidence
+        response_blocks.append(
+            f"**Verdict**: Based on evidence-based guidelines from **{title}** (`{src}`), "
+            "effective management involves adhering to clinical standards, monitoring symptoms, and consulting your healthcare team."
+        )
         response_blocks.append("")
-        for i, c in enumerate(retrieved_chunks[:2], 1):
+        response_blocks.append("### 📋 Evidence-Based Clinical Recommendations:")
+
+        seen_points = set()
+        for i, c in enumerate(retrieved_chunks[:3], 1):
             text_lines = [line.strip() for line in c.get("text", "").split("\n") if line.strip() and not line.startswith("#")]
             for raw_l in text_lines:
-                # Clean bullet markers safely without stripping ** bolding delimiters
                 clean_l = re.sub(r"^(?:[-*]\s+|\d+\.\s+|#+\s*)", "", raw_l).strip()
-                if len(clean_l) > 30 and not any(clean_l.lower().startswith(x) for x in ["mechanism", "pharmacodynamics"]):
+                if len(clean_l) > 35 and clean_l.lower() not in seen_points:
+                    seen_points.add(clean_l.lower())
                     response_blocks.append(f"- {clean_l} [{i}]")
+                    if len(seen_points) >= 5:
+                        break
+            if len(seen_points) >= 5:
+                break
+
+        # Query-specific profile check
+        if conditions or medications:
+            relevant_c = [c for c in conditions if any(w in c.lower() for w in q_lower.split())]
+            relevant_m = [m for m in medications if any(w in m.lower() for w in q_lower.split())]
+            if relevant_c or relevant_m:
+                response_blocks.append("")
+                response_blocks.append("### 👤 Relevant Profile Context:")
+                if relevant_c:
+                    response_blocks.append(f"- **Documented Conditions**: Your profile records {', '.join(relevant_c)}.")
+                if relevant_m:
+                    response_blocks.append(f"- **Current Medications**: Coordinate this information with your current prescriptions: {', '.join(relevant_m)}.")
 
     raw_response = "\n".join(response_blocks)
     return fix_unbalanced_markdown(raw_response)

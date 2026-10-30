@@ -243,19 +243,40 @@ def check_allergy_contraindications(
     response_text: str,
     allergies: List[str],
 ) -> Optional[str]:
-    """Inspects assistant response or query to alert if any documented patient allergen is mentioned."""
+    """Inspects assistant response to alert if any documented patient allergen is suggested or mentioned in a non-avoidance context."""
     if not allergies:
         return None
 
     normalized_response = response_text.lower()
     flagged_allergens = []
 
+    # Patterns indicating the text is cautioning / warning against the drug, NOT prescribing it
+    avoidance_pattern = re.compile(
+        r"(?:strictly\s+)?avoid\b|do\s+not\s+(?:take|use)\b|contraindicated\b|contraindication\b|"
+        r"allergic\b|allergy\b|hypersensitivity\b|sensitivity\b|intolerance\b|reaction\b",
+        re.IGNORECASE,
+    )
+
     for allergen in allergies:
         clean_allergen = allergen.strip().lower()
         if not clean_allergen:
             continue
         pattern = r"\b" + re.escape(clean_allergen) + r"\b"
-        if re.search(pattern, normalized_response):
+        matches = list(re.finditer(pattern, normalized_response))
+        if not matches:
+            continue
+
+        # Check if all mentions of the allergen are within an avoidance / caution context
+        is_safe_mention = True
+        for m in matches:
+            start = max(0, m.start() - 60)
+            end = min(len(normalized_response), m.end() + 60)
+            surrounding = normalized_response[start:end]
+            if not avoidance_pattern.search(surrounding):
+                is_safe_mention = False
+                break
+
+        if not is_safe_mention:
             flagged_allergens.append(allergen.strip())
 
     if flagged_allergens:
@@ -491,17 +512,25 @@ def post_process_safety(
     full_output = "\n\n".join(sections).strip()
 
     # 6. Ensure allergy check line is present for medication queries if not already present
-    is_med_query = any(k in q_lower for k in ["ibuprofen", "advil", "motrin", "naproxen", "aleve", "nsaid", "nsaids", "medication", "drug", "pill", "pain", "headache", "tylenol", "acetaminophen"])
-    if is_med_query and "Allergy Check" not in full_output and "ALLERGY CONFLICT" not in full_output:
-        allergies_str = ", ".join(allergies) if allergies else "documented profile"
-        if full_output.startswith("**Verdict**:"):
-            parts = full_output.split("\n\n", 1)
-            if len(parts) == 2:
-                full_output = f"{parts[0]}\n\n**Allergy Check**: No conflict found with {allergies_str}.\n\n{parts[1]}"
+    is_med_query = any(k in q_lower for k in [
+        "ibuprofen", "advil", "motrin", "naproxen", "aleve", "nsaid", "nsaids", "medication",
+        "drug", "pill", "pain", "headache", "tylenol", "acetaminophen", "aspirin", "amoxicillin",
+        "penicillin", "metformin", "lisinopril"
+    ])
+    if is_med_query:
+        if "Allergy Check" not in full_output and "ALLERGY CONFLICT" not in full_output:
+            allergies_str = ", ".join(allergies) if allergies else "documented profile"
+            if full_output.startswith("**Verdict**:"):
+                parts = full_output.split("\n\n", 1)
+                if len(parts) == 2:
+                    full_output = f"{parts[0]}\n\n**Allergy Check**: No conflict found with {allergies_str}.\n\n{parts[1]}"
+                else:
+                    full_output = f"{full_output}\n\n**Allergy Check**: No conflict found with {allergies_str}."
             else:
-                full_output = f"{full_output}\n\n**Allergy Check**: No conflict found with {allergies_str}."
-        else:
-            full_output = f"**Allergy Check**: No conflict found with {allergies_str}.\n\n{full_output}"
+                full_output = f"**Allergy Check**: No conflict found with {allergies_str}.\n\n{full_output}"
+    else:
+        # For non-medication inquiries (e.g. general disease management like asthma), remove unsolicited allergy check lines
+        full_output = re.sub(r"(\*\*Allergy Check\*\*:|Allergy Check:)[^\n]*\n*", "", full_output, flags=re.IGNORECASE).strip()
 
     # 7. Deduplicate any pre-existing medical disclaimers to guarantee it is displayed exactly ONCE
     pattern = re.compile(
