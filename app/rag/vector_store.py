@@ -50,6 +50,8 @@ class ChromaVectorStore:
             {
                 "source": chunk.get("source", "unknown"),
                 "title": chunk.get("title", ""),
+                "url": chunk.get("url", ""),
+                "category": chunk.get("category", ""),
                 "chunk_index": chunk.get("chunk_index", 0),
                 "char_count": chunk.get("char_count", len(chunk["text"])),
             }
@@ -60,7 +62,7 @@ class ChromaVectorStore:
         embeddings = self.embedding_model.embed_documents(texts)
 
         # Batch upsert into ChromaDB
-        self.collection.upsert(
+        self._get_collection().upsert(
             ids=ids,
             embeddings=embeddings,
             documents=texts,
@@ -87,7 +89,7 @@ class ChromaVectorStore:
 
         # Query ChromaDB collection
         n_results = min(top_k, self.count())
-        results = self.collection.query(
+        results = self._get_collection().query(
             query_embeddings=[query_embedding],
             n_results=n_results,
             include=["documents", "metadatas", "distances"],
@@ -112,15 +114,37 @@ class ChromaVectorStore:
                     "text": docs_list[i] if i < len(docs_list) else "",
                     "source": meta.get("source", "unknown"),
                     "title": meta.get("title", "Clinical Document"),
+                    "url": meta.get("url", ""),
+                    "category": meta.get("category", "General"),
                     "chunk_index": meta.get("chunk_index", 0),
                     "score": round(similarity, 4),
                 })
 
         return retrieved
 
+    def _get_collection(self):
+        """Returns the active collection, recreating if invalidated."""
+        try:
+            # Check if active
+            _ = self.collection.name
+            return self.collection
+        except Exception:
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
+            return self.collection
+
     def count(self) -> int:
         """Returns the total number of chunks indexed in the collection."""
-        return self.collection.count()
+        try:
+            return self.collection.count()
+        except Exception:
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
+            return self.collection.count()
 
     def reset(self) -> None:
         """Deletes all items in collection and reinitializes."""

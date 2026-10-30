@@ -1,26 +1,33 @@
-# Clinical Guide: Hypertension (High Blood Pressure)
+# Clinical Guide: Hypertension Management & Target Blood Pressure
 
-## Overview
-Hypertension is defined as persistent elevation of systemic arterial blood pressure. Often called the "silent killer" because it typically produces no noticeable symptoms until organ damage occurs.
+## AHA/ACC Blood Pressure Classification
+- **Normal**: Systolic < 120 mmHg AND Diastolic < 80 mmHg.
+- **Elevated**: Systolic 120–129 mmHg AND Diastolic < 80 mmHg.
+- **Stage 1 Hypertension**: Systolic 130–139 mmHg OR Diastolic 80–89 mmHg.
+- **Stage 2 Hypertension**: Systolic ≥ 140 mmHg OR Diastolic ≥ 90 mmHg.
+- **Hypertensive Crisis**: Systolic > 180 mmHg and/or Diastolic > 120 mmHg (Requires immediate medical evaluation).
 
-## Blood Pressure Categories (Adults)
-- **Normal:** Systolic < 120 mmHg and Diastolic < 80 mmHg.
-- **Elevated:** Systolic 120–129 mmHg and Diastolic < 80 mmHg.
-- **Stage 1 Hypertension:** Systolic 130–139 mmHg or Diastolic 80–89 mmHg.
-- **Stage 2 Hypertension:** Systolic >= 140 mmHg or Diastolic >= 90 mmHg.
-- **Hypertensive Crisis:** Systolic > 180 mmHg and/or Diastolic > 120 mmHg.
+Source URL: https://www.cdc.gov/bloodpressure/about.htm
+Clinical Reference: ACC/AHA High Blood Pressure Clinical Practice Guidelines (https://www.acc.org/guidelines)
 
-## Non-Pharmacological Management (Lifestyle Changes)
-1. **DASH Diet (Dietary Approaches to Stop Hypertension):**
-   - Emphasize fruits, vegetables, whole grains, and low-fat dairy products.
-   - Limit sodium intake to under 2,300 mg daily, ideally under 1,500 mg daily for optimal reduction.
-2. **Physical Activity:**
-   - Regular brisk walking, cycling, or swimming (90–150 minutes/week) can reduce systolic pressure by 5–8 mmHg.
-3. **Weight & Substance Management:**
-   - Weight loss: Approximately 1 mmHg reduction for every 1 kg lost.
-   - Limit alcohol intake and avoid smoking or nicotine products.
-   - Stress reduction techniques (mindfulness, adequate sleep).
+## Clinical Targets
+- **General Guideline**: Target BP for non-pregnant adults with confirmed hypertension is **< 130/80 mmHg** (systolic < 130 mmHg and diastolic < 80 mmHg).
+- **Diabetic & CKD Patients**: Strict target of **< 130/80 mmHg** is recommended to slow diabetic nephropathy and reduce cardiovascular events.
+- **Glycemic Considerations in Diabetic Patients with Hypertension**: The typical glycemic target is **HbA1c < 7%** (individualized between < 6.5% for younger patients and < 8.0% for patients with complex comorbidities or severe hypoglycemia history).
 
-## Hypertensive Emergency vs Urgency
-- **Hypertensive Urgency:** Severely elevated BP (>180/>120) without acute end-organ damage. Requires prompt outpatient or clinical evaluation.
-- **Hypertensive Emergency (RED FLAG):** Severely elevated BP accompanied by acute symptoms such as severe chest pain, shortness of breath, severe back pain, numbness/weakness, vision changes, or difficulty speaking. This is life-threatening and demands immediate emergency medical services (911/112).
+## First-Line Antihypertensive Classes
+1. **ACE Inhibitors (e.g., Lisinopril, Enalapril)**:
+   - Inhibits angiotensin-converting enzyme, blocking conversion of Angiotensin I to Angiotensin II.
+   - Renal protective in diabetes by reducing intraglomerular pressure.
+   - Adverse Effects: Dry cough (bradykinin accumulation), hyperkalemia, angioedema.
+2. **ARBs (e.g., Losartan, Valsartan)**: Alternative for patients intolerant of ACE inhibitors.
+3. **Thiazide Diuretics (e.g., Chlorthalidone, Hydrochlorothiazide)**.
+4. **Dihydropyridine Calcium Channel Blockers (e.g., Amlodipine)**.
+
+## Critical Drug-Drug Interaction: ACE Inhibitors + NSAIDs
+- **Mechanism**: ACE inhibitors dilate the efferent renal arteriole, whereas NSAIDs (such as Ibuprofen, Naproxen) inhibit prostaglandin synthesis, constricting the afferent renal arteriole.
+- **Clinical Danger ("Triple Whammy")**: Concomitant use causes severe reduction in glomerular filtration rate (GFR), acute kidney injury (AKI), fluid retention, and blunted blood pressure control.
+
+## Lifestyle Interventions
+- Follow the DASH diet (rich in fruits, vegetables, whole grains, low sodium < 2300 mg/day).
+- Regular physical activity: at least 30 minutes of moderate aerobic activity (e.g., daily walking) 5 days per week.

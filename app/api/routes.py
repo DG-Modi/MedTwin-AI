@@ -1,11 +1,13 @@
 """FastAPI routing for MedTwin AI endpoints."""
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.config import settings
 from app.db.session import get_db
+from app.db.models import Document, QueryLog
 from app.db.schemas import (
     UserProfileCreate,
     UserProfileUpdate,
@@ -13,6 +15,7 @@ from app.db.schemas import (
     RetrievedSource,
     ChatRequest,
     ChatResponse,
+    DocumentResponse,
 )
 from app.core.digital_twin import (
     get_profile,
@@ -23,30 +26,55 @@ from app.core.digital_twin import (
 from app.core.cache import get_cache
 from app.rag.pipeline import get_rag_pipeline
 from app.services.chat_service import ChatService, get_chat_service
+from app.services.voice_service import VoiceService, get_voice_service
+from pipeline.run import run_ingestion_pipeline
 
 router = APIRouter()
 
 
 @router.get("/health", tags=["System"])
 def health_check(db: Session = Depends(get_db)):
-    """System health check and vector database status."""
+    """System health check, active model, and vector database status."""
     rag = get_rag_pipeline()
     chunks_count = rag.vector_store.count()
+    doc_count = db.query(Document).count()
     return {
         "status": "healthy",
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
+        "active_model": settings.OLLAMA_MODEL,
         "vector_store_chunks": chunks_count,
+        "documents_in_db": doc_count,
         "environment": settings.APP_ENV,
     }
 
 
 @router.post("/api/ingest", tags=["RAG Knowledge Base"])
-def ingest_documents(force_reload: bool = Query(False, description="Force re-indexing")):
-    """Triggers ingestion of clinical documents into ChromaDB."""
-    rag = get_rag_pipeline()
-    result = rag.ingest_knowledge_base(force_reload=force_reload)
+def ingest_documents(
+    force_reload: bool = Query(True, description="Force re-indexing"),
+    db: Session = Depends(get_db),
+):
+    """Triggers end-to-end ingestion of clinical documents into ChromaDB and SQLite."""
+    result = run_ingestion_pipeline(force_reload=force_reload, db=db)
     return result
+
+
+@router.get("/api/documents", response_model=List[DocumentResponse], tags=["RAG Knowledge Base"])
+def list_ingested_documents(db: Session = Depends(get_db)):
+    """Retrieves all ingested medical guidelines from the SQLite documents table."""
+    docs = db.query(Document).order_by(Document.id.asc()).all()
+    return [
+        DocumentResponse(
+            id=d.id,
+            source=d.source,
+            title=d.title,
+            url=d.url,
+            category=d.category,
+            chunk_count=d.chunk_count,
+            ingested_at=d.ingested_at.isoformat() if d.ingested_at else None,
+        )
+        for d in docs
+    ]
 
 
 @router.get("/api/search", response_model=List[RetrievedSource], tags=["RAG Knowledge Base"])
@@ -63,6 +91,8 @@ def semantic_search(
             source=r["source"],
             score=r["score"],
             text=r["text"],
+            title=r.get("title", "Clinical Guide"),
+            url=r.get("url", None),
         )
         for r in results
     ]
@@ -132,6 +162,67 @@ async def chat_endpoint(
 
 
 @router.get("/api/cache/stats", tags=["System"])
-def get_cache_telemetry():
-    """Returns query cache performance metrics."""
-    return get_cache().stats()
+def get_cache_telemetry(db: Session = Depends(get_db)):
+    """Returns two-layer query cache performance metrics and recent query logs."""
+    stats = get_cache().stats()
+
+    # Query log metrics from SQLite
+    try:
+        avg_cached = (
+            db.query(func.avg(QueryLog.total_latency_ms))
+            .filter(QueryLog.cache_hit == True)
+            .scalar()
+        )
+        avg_uncached = (
+            db.query(func.avg(QueryLog.total_latency_ms))
+            .filter(QueryLog.cache_hit == False)
+            .scalar()
+        )
+        recent_logs = (
+            db.query(QueryLog)
+            .order_by(QueryLog.id.desc())
+            .limit(10)
+            .all()
+        )
+        recent_data = [l.to_dict() for l in recent_logs]
+    except Exception:
+        avg_cached = 0.0
+        avg_uncached = 0.0
+        recent_data = []
+
+    rag = get_rag_pipeline()
+    chunks_count = rag.vector_store.count()
+
+    return {
+        **stats,
+        "avg_latency_cached_ms": round(avg_cached or 0.0, 2),
+        "avg_latency_uncached_ms": round(avg_uncached or 0.0, 2),
+        "active_model": settings.OLLAMA_MODEL,
+        "vector_store_chunks": chunks_count,
+        "recent_queries": recent_data,
+    }
+
+
+@router.post("/api/transcribe", tags=["Voice Input"])
+async def transcribe_audio_endpoint(
+    audio_file: UploadFile = File(..., description="Audio file (WAV or raw PCM)"),
+    language: Optional[str] = Query("en", description="Spoken language code (e.g. en)"),
+    service: VoiceService = Depends(get_voice_service),
+):
+    """Transcribes an uploaded audio recording into text using Whisper."""
+    try:
+        content = await audio_file.read()
+        if not content:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty audio payload provided.",
+            )
+        result = service.transcribe(content, language=language)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Speech transcription failed: {str(e)}",
+        )

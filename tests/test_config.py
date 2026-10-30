@@ -9,8 +9,8 @@ def test_settings_default_values():
     assert settings.DATABASE_URL.startswith("sqlite")
     assert settings.OLLAMA_BASE_URL == "http://localhost:11434"
     assert settings.OLLAMA_MODEL == "llama3"
-    assert settings.ENABLE_MOCK_LLM_FALLBACK is True
-    assert settings.RAG_TOP_K == 3
+    assert settings.ENABLE_MOCK_LLM_FALLBACK is False
+    assert settings.RAG_TOP_K == 4
     assert len(settings.EMERGENCY_KEYWORDS) > 5
     assert "chest pain" in settings.EMERGENCY_KEYWORDS
 

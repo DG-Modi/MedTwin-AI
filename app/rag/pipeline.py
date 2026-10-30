@@ -80,40 +80,30 @@ class RAGPipeline:
     def format_rag_context(self, retrieved_chunks: List[Dict[str, Any]]) -> str:
         """Formats retrieved chunks into structured context for the LLM prompt.
 
-        Enforces source attribution and clarity when knowledge is insufficient.
+        Enforces full chunk text, [n] source IDs, title, URL, and similarity scores.
         """
         if not retrieved_chunks:
             return (
-                "### RETRIEVED MEDICAL CONTEXT:\n"
                 "No specific clinical knowledge base documents matched this query with sufficient confidence.\n"
-                "INSTRUCTION: Clearly indicate that knowledge-base information is limited and provide only cautious, "
-                "general educational principles while recommending consultation with a licensed medical professional."
+                "If information is missing, explicitly state: 'not found in knowledge base'."
             )
 
-        context_blocks = [
-            "### RETRIEVED MEDICAL KNOWLEDGE BASE CONTEXT (MUST ATTRIBUTE SOURCES):"
-        ]
-
+        context_blocks = []
         for i, chunk in enumerate(retrieved_chunks, 1):
             source = chunk.get("source", "Medical Guide")
             title = chunk.get("title", "")
+            url = chunk.get("url", "")
             score = chunk.get("score", 0.0)
             text = chunk.get("text", "").strip()
 
-            header = f"[{i}] SOURCE: {source}"
+            header = f"[{i}] SOURCE: {source} | SOURCE ID: [{i}]"
             if title:
-                header += f" | TOPIC: {title}"
-            header += f" | CONFIDENCE: {int(score * 100)}%"
+                header += f" | TITLE: {title}"
+            if url:
+                header += f" | URL: {url}"
+            header += f" | CONFIDENCE: {int(score * 100)}% (SCORE: {score:.2f})"
 
-            context_blocks.append(f"{header}\n{text}\n")
-
-        context_blocks.append(
-            "INSTRUCTIONS FOR RAG ANSWERING:\n"
-            "1. Base your educational answer directly on the retrieved facts above.\n"
-            "2. Cite your sources clearly using the source filename (e.g., [source_name.md]).\n"
-            "3. If the retrieved context does not contain enough information, state that clearly.\n"
-            "4. NEVER invent or hallucinate clinical treatments, drug dosages, or diagnoses."
-        )
+            context_blocks.append(f"{header}\nCHUNK TEXT:\n{text}\n")
 
         return "\n".join(context_blocks)
 

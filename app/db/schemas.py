@@ -1,7 +1,7 @@
 """Pydantic schemas for data validation and API serialization."""
 
 from datetime import datetime
-from typing import List, Optional, Any, Union
+from typing import List, Optional, Any, Dict, Union
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -11,6 +11,18 @@ class RetrievedSource(BaseModel):
     source: str = Field(..., description="Document source filename or identifier")
     score: float = Field(..., description="Semantic similarity score (0 to 1)")
     text: str = Field(..., description="Excerpt from the source document")
+    title: Optional[str] = Field("Clinical Guide", description="Article or section title")
+    url: Optional[str] = Field(None, description="Source web URL (e.g. CDC, NIH, WHO)")
+
+
+class ReasoningStep(BaseModel):
+    """Explicit stage result in Chain of Thought (CoT) pipeline."""
+
+    stage: str = Field(..., description="Stage identifier (e.g., intent, emergency, safety_rules)")
+    name: str = Field(..., description="Human-readable stage title")
+    status: str = Field("completed", description="Status (completed, passed, flagged, bypassed)")
+    summary: str = Field(..., description="Concise structured summary of stage outcome")
+    details: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Metadata or flags")
 
 
 class UserProfileBase(BaseModel):
@@ -24,6 +36,8 @@ class UserProfileBase(BaseModel):
     chronic_conditions: List[str] = Field(default_factory=list, description="Known chronic health conditions")
     current_medications: List[str] = Field(default_factory=list, description="Current prescription or OTC medications")
     lifestyle_notes: Optional[str] = Field(None, description="Relevant lifestyle details (diet, smoking, exercise)")
+    clinical_tags: Optional[List[str]] = Field(default_factory=list, description="Clinical risk flags / tags")
+    twin_version: int = Field(1, description="Monotonically increasing profile version counter for cache invalidation")
 
 
 class UserProfileCreate(UserProfileBase):
@@ -41,6 +55,7 @@ class UserProfileUpdate(BaseModel):
     chronic_conditions: Optional[List[str]] = None
     current_medications: Optional[List[str]] = None
     lifestyle_notes: Optional[str] = None
+    clinical_tags: Optional[List[str]] = None
 
 
 class UserProfileResponse(UserProfileBase):
@@ -59,6 +74,7 @@ class ChatMessageCreate(BaseModel):
     sender: str = Field(..., pattern="^(user|assistant|system)$")
     content: str = Field(..., min_length=1)
     sources: List[RetrievedSource] = Field(default_factory=list)
+    reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
     is_emergency: bool = False
     cached: bool = False
 
@@ -71,8 +87,10 @@ class ChatMessageResponse(BaseModel):
     sender: str
     content: str
     sources: List[RetrievedSource] = Field(default_factory=list)
+    reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
     is_emergency: bool
     cached: bool
+    latency_ms: Optional[float] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -109,6 +127,49 @@ class ChatResponse(BaseModel):
     sources: List[RetrievedSource] = Field(default_factory=list)
     disclaimer: str
     cached: bool = False
+    cache_type: Optional[str] = None
     is_emergency: bool = False
+    reasoning_steps: List[ReasoningStep] = Field(default_factory=list)
+    retrieval_ms: Optional[float] = 0.0
+    llm_ms: Optional[float] = 0.0
+    total_latency_ms: Optional[float] = 0.0
+    model_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentResponse(BaseModel):
+    """Schema for knowledge base document library entries."""
+
+    id: int
+    source: str
+    title: str
+    url: Optional[str] = None
+    category: Optional[str] = None
+    chunk_count: int
+    ingested_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IngestionStatsResponse(BaseModel):
+    """Schema for ingestion run statistics."""
+
+    status: str
+    documents_loaded: int
+    chunks_indexed: int
+    last_run: Optional[str] = None
+    message: str
+
+
+class CacheStatsResponse(BaseModel):
+    """Schema for two-layer cache statistics."""
+
+    hits: int
+    misses: int
+    total_lookups: int
+    hit_ratio: float
+    active_entries: int
+    exact_cache_size: int
+    semantic_cache_size: int
+    recent_queries: List[Dict[str, Any]] = Field(default_factory=list)

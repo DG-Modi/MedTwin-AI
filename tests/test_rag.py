@@ -129,8 +129,7 @@ def test_rag_context_formatting():
     assert "[1] SOURCE: type_2_diabetes.md" in context
     assert "CONFIDENCE: 85%" in context
     assert "Target HbA1c" in context
-    assert "MUST ATTRIBUTE SOURCES" in context
-    assert "NEVER invent or hallucinate" in context
+    assert "CHUNK TEXT:" in context
 
 
 def test_rag_context_formatting_empty():
@@ -138,4 +137,214 @@ def test_rag_context_formatting_empty():
     pipeline = RAGPipeline(vector_store=ChromaVectorStore(is_ephemeral=True))
     context = pipeline.format_rag_context([])
     assert "No specific clinical knowledge base documents matched" in context
-    assert "Clearly indicate that knowledge-base information is limited" in context
+    assert "not found in knowledge base" in context
+
+
+def test_prompt_contains_chunk_text_and_twin_data():
+    """(a) Test that the prompt contains chunk text and twin data."""
+    from app.llm.prompts import build_medical_prompt
+
+    query = "What are my target blood pressure and HbA1c ranges?"
+    rag_context = "[1] SOURCE: hypertension.md\nTarget BP for adults is < 130/80 mmHg."
+    twin_context = (
+        "Patient: Alex Morgan\n"
+        "Conditions: Type 2 Diabetes, Hypertension\n"
+        "Meds: Metformin 500mg, Lisinopril 10mg\n"
+        "Lifestyle: DASH diet, daily walking"
+    )
+
+    prompt = build_medical_prompt(
+        query=query,
+        rag_context=rag_context,
+        twin_context=twin_context,
+    )
+
+    # Verify chunk text is present in the prompt
+    assert "Target BP for adults is < 130/80 mmHg" in prompt
+    assert "hypertension.md" in prompt
+
+    # Verify patient twin data is present in the prompt
+    assert "Alex Morgan" in prompt
+    assert "Type 2 Diabetes" in prompt
+    assert "Hypertension" in prompt
+    assert "Metformin" in prompt
+    assert "Lisinopril" in prompt
+    assert "DASH diet" in prompt
+    assert "daily walking" in prompt
+    assert "not found in knowledge base" in prompt
+
+
+def test_knowledge_base_contains_targets():
+    """(b) Test that the knowledge base contains explicit targets: 130/80 and 7%."""
+    from app.rag.pipeline import get_rag_pipeline
+
+    pipeline = get_rag_pipeline()
+    retrieved = pipeline.retrieve("What are my target blood pressure and HbA1c ranges?", top_k=4)
+
+    assert len(retrieved) >= 1
+    combined_text = " ".join(c["text"] for c in retrieved)
+
+    # Check for targets in retrieved knowledge base chunks
+    assert "130/80" in combined_text
+    assert "7%" in combined_text or "7.0%" in combined_text
+
+    # Verify source URLs and titles are returned
+    for chunk in retrieved:
+        assert chunk.get("source") in ["hypertension.md", "type_2_diabetes.md", "dash_diet.md"]
+        assert chunk.get("url") is not None
+        assert chunk.get("score") > 0.0
+
+
+@pytest.mark.asyncio
+async def test_response_contains_targets_when_in_kb():
+    """(b) Test that response contains '130/80' or '7%' when generated with KB context."""
+    from unittest.mock import AsyncMock, MagicMock
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.db.session import Base
+    from app.db.models import UserProfile
+    from app.core.cot_pipeline import ChainOfThoughtPipeline
+    from app.llm.ollama_client import OllamaClient
+
+    # In-memory test DB
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    # Create Alex Morgan twin
+    twin = UserProfile(
+        user_id="patient_001",
+        name="Alex Morgan",
+        age=45,
+        chronic_conditions=["Type 2 Diabetes", "Hypertension"],
+        current_medications=["Metformin 500mg BID", "Lisinopril 10mg QD"],
+        lifestyle_notes="Moderate daily walking, DASH diet",
+    )
+    db.add(twin)
+    db.commit()
+
+    # Mock LLM that generates response synthesizing the KB targets and Twin
+    mock_llm = MagicMock(spec=OllamaClient)
+    mock_llm.model = "llama3"
+    mock_llm.generate = AsyncMock(
+        return_value=(
+            "Based on [hypertension.md] and [type_2_diabetes.md], your target blood pressure is "
+            "< 130/80 mmHg and your target HbA1c is < 7% (individualized). "
+            "For your Type 2 Diabetes and Hypertension, your current Metformin and Lisinopril, "
+            "along with your DASH diet and regular walking, actively support reaching these targets."
+        )
+    )
+
+    pipeline = ChainOfThoughtPipeline(llm_client=mock_llm)
+    res = await pipeline.execute(
+        query="What are my target blood pressure and HbA1c ranges?",
+        user_id="patient_001",
+        session_id="test_sess",
+        db=db,
+    )
+
+    answer = res["answer"]
+    assert "130/80" in answer
+    assert "7%" in answer
+    assert "Lisinopril" in answer
+    assert "Metformin" in answer
+    db.close()
+
+
+@pytest.mark.asyncio
+async def test_llm_failure_path_returns_error_instead_of_template():
+    """(c) Test that the LLM-failure path returns an honest error instead of a fake generic template."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.db.session import Base
+    from app.core.cot_pipeline import ChainOfThoughtPipeline
+    from app.llm.ollama_client import OllamaClient
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    # OllamaClient with unreachable port and fallback disabled to verify error handling
+    unreachable_client = OllamaClient(base_url="http://127.0.0.1:99999", timeout_seconds=1)
+
+    pipeline = ChainOfThoughtPipeline(llm_client=unreachable_client, enable_grounded_fallback=False)
+    res = await pipeline.execute(
+        query="What are my target blood pressure and HbA1c ranges?",
+        user_id="patient_001",
+        session_id="test_sess_fail",
+        db=db,
+    )
+
+    answer = res["answer"]
+    # Must return an honest error indicating the local model is unavailable
+    assert "The local model is unavailable" in answer
+    # Must NOT contain the fake generic template
+    assert "documented for this topic" not in answer
+    assert "inhaler" not in answer.lower()
+    assert "respiratory distress" not in answer.lower()
+    db.close()
+
+
+@pytest.mark.asyncio
+async def test_grounded_rag_engine_synthesizes_when_ollama_offline():
+    """Verify Grounded RAG Engine produces accurate clinical targets and personalization when Ollama is offline."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.db.session import Base
+    from app.db.models import UserProfile
+    from app.core.cot_pipeline import ChainOfThoughtPipeline
+    from app.llm.ollama_client import OllamaClient
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    twin = UserProfile(
+        user_id="patient_001",
+        name="Alex Morgan",
+        age=45,
+        chronic_conditions=["Type 2 Diabetes", "Hypertension"],
+        current_medications=["Metformin 500mg BID", "Lisinopril 10mg QD"],
+        lifestyle_notes="Moderate daily walking, DASH diet",
+    )
+    db.add(twin)
+    db.commit()
+
+    offline_client = OllamaClient(base_url="http://127.0.0.1:99999", timeout_seconds=1)
+    pipeline = ChainOfThoughtPipeline(llm_client=offline_client, enable_grounded_fallback=True)
+
+    res = await pipeline.execute(
+        query="What are my target blood pressure and HbA1c ranges?",
+        user_id="patient_001",
+        session_id="test_offline_sess",
+        db=db,
+    )
+
+    answer = res["answer"]
+    assert "130/80" in answer
+    assert "7%" in answer or "7.0%" in answer
+    assert "Alex Morgan" in answer
+    assert "Lisinopril" in answer
+    assert "Metformin" in answer
+    assert "inhaler" not in answer.lower()
+    db.close()
+
+
+def test_no_inhaler_text_for_diabetes_hypertension():
+    """(d) Test that no 'inhaler' text appears for diabetes/hypertension queries."""
+    from app.rag.pipeline import get_rag_pipeline
+
+    pipeline = get_rag_pipeline()
+    retrieved = pipeline.retrieve("What are my target blood pressure and HbA1c ranges?", top_k=4)
+
+    assert len(retrieved) > 0
+    for chunk in retrieved:
+        assert "inhaler" not in chunk["text"].lower()
+        assert "respiratory distress" not in chunk["text"].lower()
+
+    formatted_context = pipeline.format_rag_context(retrieved)
+    assert "inhaler" not in formatted_context.lower()
+    assert "respiratory distress" not in formatted_context.lower()

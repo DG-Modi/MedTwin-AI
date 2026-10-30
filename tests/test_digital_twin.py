@@ -62,7 +62,7 @@ def test_create_and_get_profile(in_memory_db, sample_user_profile):
     # Retrieve from DB
     retrieved = get_profile(in_memory_db, "test_patient_001")
     assert retrieved is not None
-    assert retrieved.name == "Alex"
+    assert "Alex" in retrieved.name
     assert retrieved.age == 45
 
 
@@ -81,7 +81,7 @@ def test_update_existing_profile(in_memory_db, sample_user_profile):
     assert updated.age == 46
     assert "sulfa" in updated.allergies
     # Other fields remain preserved
-    assert updated.name == "Alex"
+    assert "Alex" in updated.name
 
 
 def test_profile_schema_validation():

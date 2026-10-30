@@ -36,14 +36,19 @@ def create_or_update_profile(
     if not uid:
         raise ValueError("user_id must be provided to create or update a profile.")
 
+    from app.core.cache import get_cache
+
     existing = get_profile(db, uid)
 
     if existing:
         for key, value in data_dict.items():
             if value is not None and hasattr(existing, key):
                 setattr(existing, key, value)
+        existing.twin_version = (getattr(existing, "twin_version", 1) or 1) + 1
         db.commit()
         db.refresh(existing)
+        # Clear/invalidate all cache entries for this patient on Save Twin
+        get_cache().invalidate_patient(uid)
         return existing
     else:
         new_profile = UserProfile(
@@ -55,10 +60,12 @@ def create_or_update_profile(
             chronic_conditions=data_dict.get("chronic_conditions") or [],
             current_medications=data_dict.get("current_medications") or [],
             lifestyle_notes=data_dict.get("lifestyle_notes"),
+            twin_version=1,
         )
         db.add(new_profile)
         db.commit()
         db.refresh(new_profile)
+        get_cache().invalidate_patient(uid)
         return new_profile
 
 

@@ -1,4 +1,4 @@
-"""Ollama LLM client with streaming, timeout resilience, and grounded educational fallback."""
+"""Ollama LLM client with streaming, timeout resilience, and honest error reporting."""
 
 import json
 import logging
@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 class OllamaClient:
     """Communicates with a local or remote Ollama instance via its HTTP API."""
+
+    model: str = settings.OLLAMA_MODEL
 
     def __init__(
         self,
@@ -41,7 +43,8 @@ class OllamaClient:
     ) -> str:
         """Sends an inference request to Ollama /api/generate.
 
-        Falls back to a grounded educational synthesis if Ollama is offline and fallback is enabled.
+        If Ollama fails or is unreachable, logs the failure with full context and returns
+        or raises an honest error ('The local model is unavailable'), never a fake generic template.
         """
         system = system_prompt or MEDICAL_SYSTEM_PROMPT
         endpoint = f"{self.base_url}/api/generate"
@@ -53,93 +56,33 @@ class OllamaClient:
             "stream": False,
         }
 
+        logger.info(f"Dispatching inference request to Ollama endpoint '{endpoint}' (model='{self.model}')")
+
         try:
             async with httpx.AsyncClient(timeout=float(self.timeout)) as client:
                 response = await client.post(endpoint, json=payload)
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("response", "").strip()
+                    ans = data.get("response", "").strip()
+                    if ans:
+                        logger.info(f"Ollama inference successful for model '{self.model}' ({len(ans)} characters)")
+                        return ans
+                    logger.warning(f"Ollama returned HTTP 200 at {endpoint} but generated empty text.")
                 else:
-                    logger.warning(
-                        f"Ollama returned HTTP {response.status_code}: {response.text}"
+                    logger.error(
+                        f"Ollama returned error HTTP {response.status_code} at {endpoint}: {response.text}"
                     )
         except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as exc:
-            logger.info(f"Ollama unavailable at {self.base_url} ({exc}). Checking fallback...")
+            logger.error(
+                f"Ollama connection/timeout failure at '{self.base_url}': {type(exc).__name__} - {exc}"
+            )
+        except Exception as exc:
+            logger.error(f"Unexpected error communicating with Ollama at '{self.base_url}': {exc}")
 
-        if self.enable_fallback:
-            return self._grounded_mock_generation(prompt)
-
+        # When the LLM fails, return an honest error, NOT a fake generic template.
         raise ConnectionError(
-            f"Ollama service at '{self.base_url}' is offline or timed out, and fallback is disabled."
+            f"The local model is unavailable at '{self.base_url}'. Please ensure Ollama is running and model '{self.model}' is installed."
         )
-
-    def _grounded_mock_generation(self, prompt: str) -> str:
-        """Synthesizes a grounded educational answer directly from the RAG and Digital Twin context in the prompt.
-
-        Used when Ollama is offline to guarantee 100% testability and reliability for evaluation.
-        """
-        lines = prompt.split("\n")
-        sources_found = []
-        patient_conditions = []
-        user_question = ""
-
-        # Parse prompt for retrieved sources and patient conditions
-        for line in lines:
-            if "SOURCE:" in line:
-                sources_found.append(line.strip())
-            elif "Chronic Health Conditions:" in line:
-                patient_conditions.append(line.replace("- Chronic Health Conditions:", "").strip())
-            elif "USER MEDICAL QUESTION:" in line:
-                idx = lines.index(line)
-                if idx + 1 < len(lines):
-                    user_question = lines[idx + 1].strip()
-
-        # Build grounded response
-        response_parts = [
-            "Based on the medical clinical knowledge base and educational guidelines:",
-            "",
-        ]
-
-        if sources_found:
-            response_parts.append("### Key Clinical Insights & Principles:")
-            for s in sources_found[:3]:
-                # Extract clean source name
-                src_name = s.split("|")[0].replace("SOURCE:", "").strip()
-                response_parts.append(f"- From **{src_name}**: Relevant clinical protocols and management guidelines are documented for this topic.")
-
-            response_parts.append("")
-            response_parts.append(
-                "1. **Lifestyle and Management**: Clinical evidence strongly emphasizes balanced nutrition, "
-                "routine physical activity, and regular monitoring as the primary foundation for long-term health."
-            )
-            response_parts.append(
-                "2. **Therapeutic Guidance**: While pharmacological options exist (such as first-line agents or inhalers "
-                "depending on the condition), they must be prescribed and monitored specifically by a treating physician."
-            )
-            response_parts.append(
-                "3. **Warning Signs**: Acute changes in symptoms (such as sudden respiratory distress, acute chest pain, or neurological deficits) "
-                "warrant immediate emergency medical evaluation."
-            )
-        else:
-            response_parts.append(
-                "The current medical knowledge base contains limited specific information regarding this query. "
-                "In general clinical practice, symptom evaluation requires physical examination and diagnostic laboratory testing "
-                "by a qualified healthcare provider."
-            )
-
-        if patient_conditions and patient_conditions[0] != "None reported":
-            response_parts.append("")
-            response_parts.append(
-                f"*Personalized Note (Digital Twin)*: In consideration of your documented history of **{patient_conditions[0]}**, "
-                "please ensure any new symptoms or lifestyle modifications are reviewed with your physician."
-            )
-
-        response_parts.append("")
-        response_parts.append(
-            "Please remember: This information is strictly educational and does not constitute a clinical diagnosis or treatment prescription."
-        )
-
-        return "\n".join(response_parts)
 
 
 _global_llm_client: Optional[OllamaClient] = None

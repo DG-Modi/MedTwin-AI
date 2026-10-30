@@ -1,28 +1,17 @@
-# Clinical Guide: Asthma Management & Action Plans
+# Clinical Guide: Asthma Action Plan & Acute Exacerbation
 
-## Overview
-Asthma is a chronic inflammatory disorder of the airways that causes bronchial hyperresponsiveness, mucosal edema, and variable airflow obstruction.
+## Pathophysiology
+Asthma is a chronic inflammatory disorder of the airways characterized by bronchial hyperresponsiveness, airway edema, and variable expiratory airflow limitation.
 
-## Common Symptoms
-- Wheezing (high-pitched whistling sound during exhalation)
-- Recurrent coughing, especially at night or early morning
-- Shortness of breath or breathlessness during exertion
-- Chest tightness or stiffness
+## Inhaler Therapy Classes
+1. **Quick-Relief (Rescue) Inhaler**: Short-acting beta2-agonist (SABA, e.g., **Albuterol HFA 90mcg**). Relaxes airway smooth muscle within minutes. Used PRN for acute bronchospasm.
+2. **Long-Term Controller Inhaler**: Inhaled Corticosteroid (ICS, e.g., Fluticasone, Budesonide) alone or in combination with Long-Acting Beta Agonist (LABA, e.g., Salmeterol). Decreases airway swelling and mucus production. Must be taken daily as prescribed.
 
-## Common Asthma Triggers
-- Allergens: Pollen, animal dander, dust mites, mold spores
-- Irritants: Tobacco smoke, air pollution, chemical fumes, strong perfumes
-- Respiratory viral infections (common cold, RSV, influenza)
-- Exercise, particularly in cold, dry air
-- Extreme weather changes or high humidity
+## Red Flag Asthma Emergency (Call 911 / 112)
+- Extreme breathlessness, inability to speak full sentences without pausing for breath.
+- Retractions (ribs or stomach pulling inward deeply during breathing).
+- Cyanosis: Lips, gums, or nail beds turning blue or grey.
+- Peak flow reading < 50% of personal best with no relief from rescue inhaler.
 
-## Medication Classes (Educational Context)
-- **Long-term Controllers:** Inhaled corticosteroids (ICS) are the cornerstone of maintenance therapy to reduce airway inflammation. Often paired with Long-Acting Beta-Agonists (LABA).
-- **Quick-Relief (Rescue) Inhalers:** Short-Acting Beta-Agonists (SABA such as albuterol) to rapidly relax bronchial smooth muscle during acute bronchospasm.
-
-## Red Flags & Acute Severe Asthma Attack
-- Severe breathlessness where the person cannot speak in complete sentences without pausing for breath.
-- Retractions (sucking in of the skin around ribs or neck during breathing).
-- Bluish lips, face, or fingernails (cyanosis).
-- Rescue inhaler does not provide relief within 15–20 minutes.
-- **Action:** Call emergency medical services immediately. This is an acute medical emergency.
+## Precautions & Triggers
+Avoid environmental triggers (smoke, cold dry air, pet dander) and strictly avoid NSAIDs/Aspirin in patients with known sensitivity or Samter's triad.

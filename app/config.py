@@ -29,16 +29,22 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3"
     OLLAMA_TIMEOUT_SECONDS: int = 60
-    ENABLE_MOCK_LLM_FALLBACK: bool = True
+    ENABLE_MOCK_LLM_FALLBACK: bool = False
+    ENABLE_GROUNDED_RAG_SYNTHESIZER: bool = True
 
     # RAG & Embeddings
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     CHROMA_PERSIST_DIR: str = "./data/chromadb"
-    RAG_TOP_K: int = 3
-    RAG_SIMILARITY_THRESHOLD: float = 0.3
+    RAG_TOP_K: int = 4
+    RAG_SIMILARITY_THRESHOLD: float = 0.25
 
     # Caching
     CACHE_TTL_SECONDS: int = 3600
+
+    # Voice Input & Audio Transcription (Whisper)
+    WHISPER_MODEL_NAME: str = "tiny"
+    ENABLE_VOICE_INPUT: bool = True
+
 
     # Medical Disclaimer & Emergency Safety Settings
     MEDICAL_DISCLAIMER: str = (

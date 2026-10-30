@@ -207,11 +207,12 @@ async def test_ollama_success_using_mock(test_service, test_db):
 # 12. Ollama Failure Graceful Handling
 @pytest.mark.asyncio
 async def test_ollama_failure_graceful_handling(test_service, test_db):
+    test_service.cot.enable_grounded_fallback = False
     test_service.llm.generate.side_effect = Exception("Ollama connection timed out")
     req = ChatRequest(user_id="user_fail", session_id="sess_fail", message="Any query")
     res = await test_service.process_chat(test_db, req)
     assert res.cached is False
-    assert "technical difficulties" in res.answer
+    assert "The local model is unavailable" in res.answer
 
 
 # 13. Post-generation Safety Check (non-diagnostic)

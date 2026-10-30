@@ -29,8 +29,19 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Creates database tables if they do not exist."""
+    """Creates database tables if they do not exist, and runs lightweight schema upgrades."""
     # Import models here to ensure registration with Base metadata
+    from sqlalchemy import text
     from app.db import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+    # Ensure twin_version column exists in SQLite user_profiles table
+    try:
+        with engine.connect() as conn:
+            columns = [row[1] for row in conn.execute(text("PRAGMA table_info(user_profiles)")).fetchall()]
+            if columns and "twin_version" not in columns:
+                conn.execute(text("ALTER TABLE user_profiles ADD COLUMN twin_version INTEGER DEFAULT 1"))
+                conn.commit()
+    except Exception:
+        pass

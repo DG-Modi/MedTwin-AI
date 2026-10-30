@@ -1,216 +1,265 @@
-# 🩺 MedTwin AI: Clinical Digital Twin & RAG-Powered Conversational Health Assistant
+# 🩺 MedTwin AI: Clinical Digital Twin & Conversational Health Assistant
 
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.32%2B-FF4B4B.svg)](https://streamlit.io/)
-[![ChromaDB](https://img.shields.io/badge/ChromaDB-Persistent-orange.svg)](https://www.trychroma.com/)
-[![Tests](https://img.shields.io/badge/Pytest-87%20Passed%20(100%25)-brightgreen.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-green.svg)]()
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17%20Local-336791.svg)](https://www.postgresql.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-Integrated-003B57.svg)](https://www.sqlite.org/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-orange.svg)](https://www.trychroma.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **Problem Statement 2: Medical-Domain RAG Chatbot MVP with Voice, Patient Digital Twins, Two-Layer Caching, and 7-Stage Chain of Thought Pipeline.**
+> **"What if your AI medical assistant actually remembered your health background and actively protected you from dangerous drug interactions?"**
 
-MedTwin AI is an edge-first, open-source clinical knowledge assistant designed strictly for medical information support. It features patient-specific Digital Twin personalization, deterministic drug interaction verification, life-threatening emergency escalation, dense semantic vector retrieval, and speech-to-text dictation.
-
----
-
-## 🌟 Key Architectural Features
-
-1. **Authoritative Clinical Data Pipeline (`pipeline/`)**:
-   - Automated ingestion of 8 authoritative clinical guidelines from the **CDC**, **NIH / MedlinePlus**, **WHO**, and **ADA**.
-   - Covers: Type 2 Diabetes, Hypertension, NSAID & Ibuprofen Safety, Acute Chest Pain Emergency Signs, DASH Diet, HbA1c & Blood Pressure Targets, Asthma Management, and Migraine Evaluation.
-   - Text cleaning, recursive chunking (500 chars, 100 overlap), dense embeddings with `all-MiniLM-L6-v2`, ChromaDB upsert, and SQLite `documents` logging.
-   - Runnable via `python -m pipeline.run` or via the interactive UI "Run Ingestion" button.
-
-2. **Patient Digital Twin Engine**:
-   - Persistent SQLite storage for demographics, confirmed allergies, chronic conditions, active prescriptions, and lifestyle notes.
-   - Includes 3 clinical case study presets (**Alex Morgan**, **Elena Rostova**, **Marcus Vance**).
-   - Dynamic prompt injection calibrating educational explanations and contraindication checks.
-
-3. **Explicit 7-Stage Chain of Thought (CoT) Pipeline**:
-   Implemented strictly as traceable code across 7 sequential stages:
-   - **Stage 1: Intent Classification**: Categorizes query (Emergency, Pharmacology, Lifestyle, Biomarker, Triage).
-   - **Stage 2: Red-Flag & Emergency Escalation**: Intercepts life-threatening symptoms and directs immediately to 911/112 & ER.
-   - **Stage 3: Digital Twin Context Injection**: Binds patient clinical background and risk profile.
-   - **Stage 4: Knowledge Base Retrieval & Citation Scoring**: Searches ChromaDB with score reranking and source metadata.
-   - **Stage 5: Deterministic Safety & Drug Interaction Engine**: Evaluates rule-based contraindications:
-     - *Ibuprofen (NSAID) vs Lisinopril (ACE Inhibitor)*: Constriction of afferent + dilation of efferent arterioles -> Acute Kidney Injury (AKI) & BP elevation.
-     - *Ibuprofen vs Metformin*: Renal clearance impairment -> Lactic acidosis risk.
-     - *Ibuprofen vs Asthma*: Leukotriene shunting -> Severe bronchospasm (AERD).
-   - **Stage 6: Structured LLM Reasoning**: Grounded prompt synthesis enforcing strict citations `[source.md]` with weak-retrieval handling.
-   - **Stage 7: Disclaimer & Post-Processing**: Softens diagnostic phrasing and appends clean mandatory medical disclaimer.
-   - Renders a collapsible **Reasoning steps** panel under each answer.
-
-4. **Two-Layer Query Cache & Telemetry**:
-   - **Layer 1 (Exact Match)**: Deterministic 64-character SHA-256 hash derived from normalized query + patient profile hash.
-   - **Layer 2 (Semantic Match)**: Vector cosine similarity on query embeddings (threshold ~0.92) within the same patient context.
-   - TTL expiration (3600s) and LRU eviction.
-   - Comprehensive telemetry in SQLite `query_logs`: hit/miss counts, hit rate, average cached vs uncached latency, and per-stage timings.
-   - Demonstrably returns second identical query in 0ms with `⚡ Cached` tag.
-
-5. **Voice Input (Whisper STT) & Audio Playback (TTS)**:
-   - Microphone audio recording with **OpenAI Whisper-tiny** CPU inference.
-   - In-memory waveform resampler converting arbitrary audio payloads to 16kHz mono float32.
-   - Optional auto-submit toggle ("Auto-send to chat when speech detected").
-   - 1-click test simulated voice query buttons.
-   - Audio Read-Aloud button (browser SpeechSynthesis) for accessibility.
-
-6. **5-Tab Polished UI**:
-   - `💬 Chat & Voice`: Consultation, CoT reasoning panel, citation cards, TTS audio, quick prompts.
-   - `🔎 Knowledge Search`: Direct ChromaDB vector search with confidence scores and top-k slider.
-   - `📚 Library`: Catalog of 8 ingested guidelines, source URLs, and "Run Ingestion Pipeline" button.
-   - `📈 Analytics`: Real-time cache performance dashboard, latency comparisons, and recent query logs.
-   - `📐 Docs`: Interactive Mermaid Architecture Diagram, Data Flow Diagram (DFD), Database ER Diagram, and Library Tradeoff Evaluation.
+**MedTwin AI** is an intelligent, edge-first clinical knowledge assistant. It combines **authoritative medical guidelines** (from the CDC, WHO, and NIH) with a personalized **Patient Digital Twin** to deliver safe, educational answers to your health and medication questions—via text or voice.
 
 ---
 
-## 🚀 Quickstart Installation Guide
+## 📖 Table of Contents
+1. [🌟 What is MedTwin AI? (In Plain English)](#-what-is-medtwin-ai-in-plain-english)
+2. [💡 The Problem It Solves](#-the-problem-it-solves)
+3. [🧠 How Does It Work? The 3 Core Pillars](#-how-does-it-work-the-3-core-pillars)
+4. [🔄 The 7-Stage Chain of Thought (CoT) Engine](#-the-7-stage-chain-of-thought-cot-engine)
+5. [🗄️ Database Architecture (SQLite & PostgreSQL)](#️-database-architecture-sqlite--postgresql)
+6. [🎙️ Voice Dictation (Whisper Speech-to-Text)](#️-voice-dictation-whisper-speech-to-text)
+7. [⚡ Two-Layer Fast Caching (0ms Repetitive Queries)](#-two-layer-fast-caching-0ms-repetitive-queries)
+8. [🚀 Step-by-Step Installation Guide (For Anyone)](#-step-by-step-installation-guide-for-anyone)
+9. [💻 How to Run the Project](#-how-to-run-the-project)
+10. [🧪 Automated Testing](#-automated-testing)
+11. [⚠️ Safety & Ethical Boundaries](#️-safety--ethical-boundaries)
+
+---
+
+## 🌟 What is MedTwin AI? (In Plain English)
+
+Imagine you visit a doctor or pharmacist. Before they advise you on taking a medicine, they always ask:
+- *"Are you allergic to anything?"*
+- *"Do you have conditions like high blood pressure or asthma?"*
+- *"What other pills are you currently taking?"*
+
+Normal AI chatbots (like standard ChatGPT) **do not remember this**. If you ask them *"Can I take Ibuprofen for a headache?"*, they will usually say *"Yes, Ibuprofen relieves headaches."* 
+
+**However, if you take blood pressure medicine (like Lisinopril), Ibuprofen can trigger acute kidney failure and dangerous blood pressure spikes!**
+
+**MedTwin AI fixes this:**
+1. You create your **Digital Twin** (your virtual health profile: allergies, conditions, and active prescriptions).
+2. It stores your profile securely in your **own laptop's database** (SQLite or PostgreSQL).
+3. Whenever you ask a question, it automatically cross-checks your unique health profile and official medical guidelines to ensure the advice is **safe for you**.
+
+---
+
+## 💡 The Problem It Solves
+
+| Ordinary AI Chatbots | 🩺 MedTwin AI |
+| :--- | :--- |
+| ❌ Has no memory of your medical history | ✅ Remembers your allergies, medications & conditions |
+| ❌ Can hallucinate or invent medical treatments | ✅ Grounded strictly in CDC, NIH, ADA, and WHO clinical guides |
+| ❌ Might miss life-threatening drug conflicts | ✅ Hardcoded Drug Interaction Safety Engine blocks dangerous combos |
+| ❌ Gives slow answers every time | ✅ Two-layer smart cache answers identical questions in **0ms** |
+| ❌ Might give diagnostic false hope during heart attacks | ✅ Instantly detects emergencies and directs you to 911 / 112 & the ER |
+
+---
+
+## 🧠 How Does It Work? The 3 Core Pillars
+
+### 1. The Patient Digital Twin (Your Health Memory)
+A "Digital Twin" is simply a digital version of your medical background. It securely tracks:
+* **Demographics**: Name, Age, Gender
+* **Allergies**: Penicillin, Peanuts, Sulfa, Aspirin, etc.
+* **Chronic Conditions**: Type 2 Diabetes, Hypertension, Asthma, Migraines
+* **Current Medications**: Lisinopril, Metformin, Albuterol inhaler, etc.
+* **Lifestyle Notes**: Diet, exercise habits, smoking status
+
+### 2. RAG Knowledge Base (Retrieval-Augmented Generation)
+Instead of relying on guesswork, MedTwin AI searches a local vector database (**ChromaDB**) holding authoritative clinical guidelines from:
+* 🏛️ **CDC** (Centers for Disease Control and Prevention)
+* 🏛️ **NIH / MedlinePlus** (National Institutes of Health)
+* 🏛️ **WHO** (World Health Organization)
+* 🏛️ **ADA** (American Diabetes Association)
+
+### 3. Deterministic Clinical Safety Engine
+AI models can sometimes be unpredictable. MedTwin AI uses **hardcoded clinical rules** that run *before* the AI is even allowed to respond:
+* **Ibuprofen + Lisinopril**: Detected! Warns of Acute Kidney Injury (AKI) and blood pressure spikes.
+* **Ibuprofen + Metformin**: Detected! Warns of impaired renal drug clearance and lactic acidosis.
+* **Ibuprofen + Asthma**: Detected! Warns of severe bronchospasms (Aspirin-Exacerbated Respiratory Disease).
+* **Chest Pain / Stroke Keywords**: Detected! Instantly triggers emergency escalation protocol.
+
+---
+
+## 🔄 The 7-Stage Chain of Thought (CoT) Engine
+
+Every single time a user asks a question, it passes through 7 traceable stages:
+
+```mermaid
+flowchart TD
+    A["👤 User asks query (Voice or Text)"] --> B["Stage 1: Intent Classification"]
+    B --> C{"Stage 2: Emergency Red-Flag Check"}
+    C -- "🚨 Life-Threatening (Chest Pain, Stroke)" --> D["Direct Emergency Alert (Call 911 / ER)"]
+    C -- "Routine Health Query" --> E["Stage 3: Digital Twin Injection"]
+    E --> F["Stage 4: Search CDC/WHO Guidelines (ChromaDB)"]
+    F --> G["Stage 5: Rule-Based Drug Interaction Engine"]
+    G --> H["Stage 6: Grounded AI Answer Synthesis"]
+    H --> I["Stage 7: Non-Diagnostic Disclaimer & Sources"]
+    I --> J["💬 Safe Answer Delivered with Citations & TTS Audio"]
+```
+
+1. **Stage 1: Intent Classification** — Determines what you are asking (Pharmacology, Emergency, Lifestyle, or Symptoms).
+2. **Stage 2: Red-Flag Emergency Guardrail** — If you say *"severe chest pain"* or *"trouble breathing"*, it bypasses everything and immediately tells you to call emergency services.
+3. **Stage 3: Digital Twin Binding** — Pulls your specific health background from the local database.
+4. **Stage 4: Knowledge Retrieval** — Finds the top scientific medical guidelines matching your question.
+5. **Stage 5: Drug Interaction Verification** — Validates drug safety against your current medications.
+6. **Stage 6: Grounded Reasoning** — Synthesizes a personalized, clear educational answer with citations `[source.md]`.
+7. **Stage 7: Disclaimer & Safety Boundaries** — Ensures the phrasing is educational (not diagnosing) and attaches mandatory disclaimers.
+
+---
+
+## 🗄️ Database Architecture (SQLite & PostgreSQL)
+
+MedTwin AI is designed to support **both** beginner and enterprise database systems:
+
+```
+             ┌──────────────────────────────────────────────┐
+             │            MedTwin AI Application            │
+             └──────────────────────┬───────────────────────┘
+                                    │ SQLAlchemy ORM
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+       ┌─────────────────────────┐     ┌─────────────────────────┐
+       │   Path 1: SQLite (.db)  │     │   Path 2: PostgreSQL    │
+       │   - Single local file   │     │   - Enterprise Server   │
+       │   - Zero installation   │     │   - Installed on laptop │
+       │   - Instant development │     │   - High concurrency    │
+       └─────────────────────────┘     └─────────────────────────┘
+```
+
+### What Information is Stored in the Database?
+* 👤 **`user_profiles`**: Patient name, age, allergies, chronic conditions, medications, and lifestyle notes.
+* 💬 **`conversations`**: Chat session history linked to the specific patient.
+* ✉️ **`chat_messages`**: Every question and AI answer, complete with citation sources and latency timestamps.
+* 📚 **`documents`**: Ingested medical guideline articles (source titles, URLs, categories, chunk counts).
+* 📈 **`query_logs`**: System telemetry (response times, cache hits vs. misses, emergency flags).
+
+---
+
+## 🎙️ Voice Dictation (Whisper Speech-to-Text)
+
+Don't want to type? MedTwin AI includes a built-in microphone recorder powered by **OpenAI Whisper-tiny** running entirely locally on your CPU.
+* Speak your symptoms into your microphone.
+* Whisper transcribes your voice in real time.
+* Toggle *"Auto-send to chat upon transcription"* for hands-free medical consultations.
+* Click **🔊 Read Aloud** on any assistant answer to hear the response read back to you!
+
+---
+
+## ⚡ Two-Layer Fast Caching (0ms Repetitive Queries)
+
+If a patient asks the same question twice, why wait for the AI to re-think?
+* **Layer 1 (Exact Match)**: Computes a SHA-256 fingerprint of the query + patient profile. If asked again, returns the answer in **0 milliseconds**.
+* **Layer 2 (Semantic Match)**: Compares the vector cosine similarity (threshold >= 0.92) to match conceptually identical questions.
+* In the UI, cached answers display a proud **`⚡ Cached`** badge!
+
+---
+
+## 🚀 Step-by-Step Installation Guide (For Anyone)
 
 ### Prerequisites
-- Python 3.10+ (tested on Python 3.12)
-- [Ollama](https://ollama.com/) (Optional: if Ollama is offline, MedTwin AI automatically uses its grounded fallback generator with 100% testability).
+* **Windows, macOS, or Linux**
+* **Python 3.10+** (Tested on Python 3.12)
+* **Git** installed on your laptop
 
-### 1. Clone Repository & Setup Virtual Environment
+### 1. Clone the Project
+Open PowerShell or your terminal and run:
 ```bash
-git clone https://github.com/your-username/MedTwin-AI.git
+git clone https://github.com/DG-Modi/MedTwin-AI.git
 cd MedTwin-AI
+```
 
-python -m venv .venv
+### 2. Create and Activate a Virtual Environment
+```powershell
 # Windows:
-.venv\Scripts\activate
-# Linux/macOS:
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Linux / macOS:
+python3 -m venv .venv
 source .venv/bin/activate
+```
 
+### 3. Install Required Packages
+```bash
 pip install -r requirements.txt
+pip install "psycopg[binary]"
 ```
 
-### 2. Pull Ollama Model (Optional)
-```bash
-ollama pull llama3.2
-# or
-ollama pull llama3
+### 4. Setup Database Connection (`.env`)
+Create a `.env` file in the main folder (`D:\MedTwin-AI\.env`):
+
+* **To use SQLite (Easiest - Ready instantly):**
+  ```env
+  DATABASE_URL=sqlite:///./medtwin.db
+  ```
+
+* **To use PostgreSQL (If installed on your laptop):**
+  ```env
+  DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/medtwin_db
+  ```
+
+### 5. Initialize the Database Tables
+Run this one-liner to generate all database tables automatically:
+```powershell
+python -c "from app.db.session import init_db; init_db(); print('Database tables ready!')"
 ```
 
-### 3. Run Data Ingestion Pipeline
-Scrapes guidelines from CDC, NIH, WHO, and ADA, builds ChromaDB vector index, and initializes SQLite tables:
-```bash
+### 6. Ingest Clinical Knowledge Documents
+Load the 8 authoritative medical guidelines from CDC, WHO, and NIH into your vector database:
+```powershell
 python -m pipeline.run
 ```
-*Expected output*: `Successfully ingested 8 documents (29 chunks) in ~11s`.
-
-### 4. Run Automated Test Suite
-Run the 87 automated unit and integration tests:
-```bash
-python run_tests.py
-# or
-pytest -v
-```
-*Expected output*: `87 passed in ~19s (100% passing)`.
-
-### 5. Launch Application Services
-Open two terminal windows:
-
-**Terminal 1 — FastAPI Backend**:
-```bash
-uvicorn app.api.main:app --host 127.0.0.1 --port 8000
-```
-- API Docs (Swagger): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Health Status: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-
-**Terminal 2 — Streamlit Frontend**:
-```bash
-streamlit run streamlit_app.py
-```
-- Interactive Frontend: [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## ⏱️ 2-Minute Interview Demo Script
+## 💻 How to Run the Project
 
-Follow this sequential walkthrough to demonstrate all required capabilities:
+MedTwin AI runs as a modern two-tier web application:
 
-| Step | Action | What to Observe / Verify |
-| :--- | :--- | :--- |
-| **1. Digital Twin Context** | Select preset **Alex Morgan** from sidebar. Notice conditions (`Type 2 Diabetes`, `Hypertension`) and meds (`Metformin`, `Lisinopril`). | Expand **🔍 View Injected LLM Prompt Context** in sidebar to show personalized context formatting. |
-| **2. Drug Interaction Safety** | Click suggested button: `💊 Can I take Ibuprofen with my meds?` | **Stage 5 Deterministic Safety Engine** flags `DRUG_INTERACTION_NSAID_ACEI` and `DRUG_INTERACTION_NSAID_METFORMIN`. The response explicitly warns against Ibuprofen due to Lisinopril/Metformin renal risk and suggests Acetaminophen. |
-| **3. CoT Reasoning Panel** | Expand **🧠 Clinical Reasoning Steps (Chain of Thought)** under the response. | Displays explicit summaries for each stage: Intent, Emergency check passed, Twin injected, 3 chunks retrieved, Safety flagged, LLM synthesized, Disclaimer verified. |
-| **4. Voice Dictation & STT** | Open **🎙️ Whisper Voice Input** expander. Click **🎙️ Load Simulated Voice Prompt** or record voice with mic. Click **🚀 Send Voice Query**. | Audio waveform is decoded in-memory and transcribed via Whisper-tiny CPU inference, automatically populating chat. Click **🔊 Read Aloud** to test browser audio synthesis. |
-| **5. Life-Threatening Emergency** | Click button: `🚨 Crushing chest pain emergency`. | Normal LLM generation is **immediately bypassed**. A red emergency alert appears instructing user to call **911 / 112** and proceed to the nearest ER. Sources list is 0. |
-| **6. Demonstrable Two-Layer Cache** | Submit the identical query again: `What are the DASH diet recommendations for blood pressure?` | Second query returns in **0ms** displaying badge `⚡ Cached Query (EXACT) (0ms)`. Open **📈 Analytics** tab to show live cache hit count increment and hit rate percentage. |
-| **7. Pipeline & Ingestion** | Navigate to **📚 Library** tab. Click **📥 Run Ingestion Pipeline**. | Live spinner scrapes guidelines, chunks, embeds with `all-MiniLM-L6-v2`, upserts 29 chunks into ChromaDB, and logs ingestion timestamp in SQLite `documents` table. |
+### Terminal 1: Start the FastAPI Backend
+```powershell
+python -m uvicorn app.api.main:app --reload --port 8000
+```
+* Interactive Swagger API documentation: **[http://localhost:8000/docs](http://localhost:8000/docs)**
+* System Health status: **[http://localhost:8000/health](http://localhost:8000/health)**
+
+### Terminal 2: Launch the Streamlit Web Application
+```powershell
+python -m streamlit run streamlit_app.py
+```
+* Opens automatically in your browser at: **[http://localhost:8501](http://localhost:8501)**
 
 ---
 
-## 🗂️ Project Directory Structure
+## 🧪 Automated Testing
 
-```
-MedTwin-AI/
-├── app/
-│   ├── api/
-│   │   ├── main.py              # FastAPI application entrypoint & middleware
-│   │   └── routes.py            # Endpoints: /api/chat, /api/twin, /api/search, /api/documents, /api/cache
-│   ├── core/
-│   │   ├── cache.py             # Two-layer cache (Exact SHA-256 + Semantic ~0.92) & LRU eviction
-│   │   ├── cot_pipeline.py      # Explicit 7-stage Chain of Thought reasoning pipeline
-│   │   ├── digital_twin.py      # Patient profile manager & prompt context builder
-│   │   └── guardrails.py        # Emergency keyword detector, drug interactions & disclaimer enforcement
-│   ├── db/
-│   │   ├── models.py            # SQLAlchemy models: UserProfile, Conversation, ChatMessage, Document, QueryLog
-│   │   ├── schemas.py           # Pydantic validation schemas & request/response models
-│   │   └── session.py           # Database engine & session generator
-│   ├── frontend/
-│   │   └── app.py               # Streamlit 5-tab responsive UI with dark theme
-│   ├── llm/
-│   │   ├── ollama_client.py     # Ollama HTTP client & grounded educational fallback
-│   │   └── prompts.py           # System prompt templates & clinical instruction sets
-│   ├── rag/
-│   │   ├── chunking.py          # Recursive text chunking with semantic boundary preservation
-│   │   ├── embeddings.py        # Sentence-transformers all-MiniLM-L6-v2 wrapper
-│   │   ├── pipeline.py          # RAG retrieval & citation formatting
-│   │   └── vector_store.py      # Persistent ChromaDB client with cosine similarity
-│   └── services/
-│       ├── chat_service.py      # Chat orchestration coordinating cache, CoT, and SQLite logging
-│       └── voice_service.py     # Whisper-tiny STT & audio waveform resampler
-├── data/
-│   ├── chromadb/                # Persistent ChromaDB vector index
-│   └── sample_docs/             # 8 Authoritative clinical guidelines (CDC, NIH, WHO, ADA)
-├── docs/
-│   ├── requirements.md          # Functional & non-functional requirements, scope decisions
-│   ├── HLD.md                   # High-Level Architecture & component design
-│   ├── LLD.md                   # Low-Level Design & method contracts
-│   ├── data_flow_diagram.md     # Level-0 and Level-1 Mermaid Data Flow Diagrams (DFD)
-│   ├── db_design.md             # Entity Relationship (ER) Diagram & schema specifications
-│   ├── architecture_diagram.md  # System Architecture Mermaid diagram
-│   ├── libraries.md             # Technology comparison matrix & trade-offs
-│   └── plan_of_action.md        # 20-Hour implementation timeline & deliverables
-├── pipeline/
-│   ├── scraper.py               # Clinical guideline scraper (BeautifulSoup + Requests)
-│   └── run.py                   # Data pipeline runner: scrape -> clean -> chunk -> embed -> SQLite
-├── tests/                       # 87 Passing Automated Tests
-│   ├── conftest.py              # Shared fixtures (in-memory DB, TestClient, mock LLM/RAG, audio WAV)
-│   ├── test_api_integration.py  # End-to-end FastAPI endpoint integration tests
-│   ├── test_cache_isolation.py  # Cache isolation, TTL expiration, and telemetry tests
-│   ├── test_chat_pipeline.py    # Chat orchestration, CoT stages, and fallback tests
-│   ├── test_clinical_safety.py  # Emergency escalation, disclaimer, and prompt injection tests
-│   ├── test_config.py           # Configuration defaults and environment overrides
-│   ├── test_digital_twin.py     # Digital Twin CRUD and context formatting tests
-│   ├── test_guardrails.py       # Clinical guardrails and contraindication checks
-│   ├── test_llm.py              # Ollama client and prompt synthesis tests
-│   ├── test_rag.py              # Loader, chunker, vector store, and retrieval tests
-│   └── test_voice_service.py    # Whisper-tiny STT and waveform resampling tests
-├── docker-compose.yml           # Multi-container orchestration (FastAPI + Streamlit)
-├── Dockerfile.backend           # Container image for FastAPI backend
-├── Dockerfile.frontend          # Container image for Streamlit frontend
-├── pytest.ini                   # Pytest configuration
-├── run_tests.py                 # Convenience CLI test runner
-└── requirements.txt             # Project Python dependencies
+MedTwin AI comes with automated tests verifying RAG retrieval, drug interactions, database isolation, and emergency escalation:
+
+Run the test suite:
+```powershell
+python -m pytest
 ```
 
 ---
 
-## ⚖️ Ethical & Clinical Boundaries
-- **Educational Scope Only**: MedTwin AI is strictly an educational tool and **NOT** a diagnostic device.
-- **Non-Prescriptive**: Does not prescribe medications or alter dosages.
-- **Mandatory Disclaimer**: Every response enforces the verified clinical disclaimer.
-- **Emergency Escalation**: Immediate guidance to dial 911/112 and proceed to nearest ER.
-#   M e d T w i n - A I  
- 
+## ⚠️ Safety & Ethical Boundaries
+
+> [!IMPORTANT]
+> **Educational & Informational Tool Only**
+> 
+> MedTwin AI is an open-source educational clinical assistant and **NOT** a certified medical diagnostic device or healthcare provider.
+> 
+> * It does not prescribe medication or issue formal diagnoses.
+> * In any real-world emergency (crushing chest pain, severe shortness of breath, sudden numbness, uncontrolled bleeding), immediately call emergency services (**911**, **112**, or your local emergency number) or proceed to the nearest emergency room.
+
+---
+
+## 👥 Authors & Open Source Credits
+* Built with ❤️ by [DG-Modi](https://github.com/DG-Modi)
+* Clinical guidelines curated from CDC, NIH MedlinePlus, WHO, and ADA open-access repositories.
+* Open-source licensed under the [MIT License](LICENSE).
