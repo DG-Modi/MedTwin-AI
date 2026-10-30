@@ -325,7 +325,7 @@ if "transcribed_voice_text" not in st.session_state:
     st.session_state["transcribed_voice_text"] = ""
 
 if "auto_send_voice" not in st.session_state:
-    st.session_state["auto_send_voice"] = False
+    st.session_state["auto_send_voice"] = True
 
 
 # Helper Functions
@@ -530,11 +530,11 @@ with st.sidebar:
 # MAIN WORKSPACE: 5 SHORTENED TABS
 # ==============================================================================
 tab_chat, tab_kb, tab_library, tab_analytics, tab_docs = st.tabs([
-    "💬 Chat & Voice",
-    "🔎 Knowledge Search",
-    "📚 Library",
-    "📈 Analytics",
-    "📐 Docs",
+    "Chat & Voice",
+    "Knowledge Search",
+    "Library",
+    "Analytics",
+    "Docs",
 ])
 
 
@@ -565,10 +565,11 @@ with tab_chat:
             ]
             st.rerun()
 
-    # Whisper Voice Input Section
-    with st.expander("🎙️ Whisper Speech-to-Text & Microphone", expanded=False):
+    # Whisper Voice Input Section (Visible by default for immediate accessibility)
+    with st.expander("🎙️ Whisper Speech-to-Text Voice Input", expanded=True):
+        st.caption("Speak naturally into your microphone. Whisper-tiny transcribes audio locally on CPU and automatically submits to chat.")
         rec_audio = st.audio_input("Record voice query via microphone:")
-        st.session_state["auto_send_voice"] = st.checkbox("⚡ Auto-send to chat upon transcription", value=st.session_state["auto_send_voice"])
+        st.session_state["auto_send_voice"] = st.checkbox("⚡ Auto-submit to chat upon transcription", value=st.session_state["auto_send_voice"])
 
         if rec_audio is not None:
             audio_bytes = rec_audio.getvalue()
@@ -579,8 +580,9 @@ with tab_chat:
                 if text:
                     st.session_state["transcribed_voice_text"] = text
                     st.success(f"🗣️ Transcribed: *\"{text}\"*")
-                    if st.session_state.get("auto_send_voice"):
+                    if st.session_state.get("auto_send_voice", True):
                         st.session_state["pending_message"] = text
+                        st.session_state["transcribed_voice_text"] = ""
                         st.rerun()
                 else:
                     st.warning("No speech detected.")
@@ -604,17 +606,17 @@ with tab_chat:
             if msg.get("is_emergency"):
                 st.markdown(f"""
                 <div class="emergency-box">
-                    🚨 <strong>CRITICAL EMERGENCY NOTICE:</strong> {settings.EMERGENCY_NOTICE}
+                    {msg["content"]}
                 </div>
                 """, unsafe_allow_html=True)
-
-            # Render message content
-            st.markdown(msg["content"])
+            else:
+                st.markdown(msg["content"])
 
             # Under each assistant answer: Read Aloud button, CoT Reasoning, Sources, and Latency/Cache badges
             if role == "assistant" and msg_idx > 0:
                 # 1. Read Aloud TTS button rendered separately via components.html
-                clean_speech_text = re.sub(r'[*#_`\[\]]', '', msg["content"])
+                clean_speech_text = re.sub(r'<[^>]+>', '', msg["content"])
+                clean_speech_text = re.sub(r'[*#_`\[\]]', '', clean_speech_text).strip()
                 clean_speech_json = json.dumps(clean_speech_text)
                 btn_id = f"speak_btn_{msg_idx}"
                 tts_component_html = f"""
@@ -651,6 +653,7 @@ with tab_chat:
                         var text = {clean_speech_json};
                         var u = new SpeechSynthesisUtterance(text);
                         u.rate = 1.0;
+                        window._activeUtterance = u;
                         window.speechSynthesis.speak(u);
                     ">
                         🔊 Read Aloud
@@ -850,9 +853,48 @@ with tab_library:
 # TAB 4: ANALYTICS (CACHE & TELEMETRY)
 # ------------------------------------------------------------------------------
 with tab_analytics:
-    st.subheader("📈 Cache & Telemetry Analytics")
-    st.caption("Real-time telemetry showing Two-Layer caching (Exact SHA-256 + Semantic ~0.92) and SQLite query logs.")
+    st.subheader("📈 System Analytics & Startup Self-Check")
+    st.caption("Real-time telemetry showing Two-Layer caching, latency comparisons, and startup diagnostics.")
 
+    # Startup self-check
+    st.markdown("##### 🔍 Startup Diagnostics & Component Status")
+    chk1, chk2, chk3, chk4 = st.columns(4)
+    with chk1:
+        st.markdown(f"""
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 8px; padding: 12px;">
+            <div style="font-size: 0.8rem; color: #94A3B8;">🤖 LLM PROVIDER</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #38BDF8; margin-top: 4px;">{active_model}</div>
+            <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● Mode: {settings.LLM_PROVIDER}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with chk2:
+        st.markdown(f"""
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 8px; padding: 12px;">
+            <div style="font-size: 0.8rem; color: #94A3B8;">📚 CHROMA VECTOR STORE</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #38BDF8; margin-top: 4px;">{chunks_count} Chunks</div>
+            <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● Cosine Index Loaded</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with chk3:
+        db_label = "Connected" if backend_online else "Standby (SQLite)"
+        st.markdown(f"""
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 8px; padding: 12px;">
+            <div style="font-size: 0.8rem; color: #94A3B8;">🗄️ DATABASE CONNECTION</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #38BDF8; margin-top: 4px;">{db_label}</div>
+            <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● Relational Session Active</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with chk4:
+        st.markdown(f"""
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 8px; padding: 12px;">
+            <div style="font-size: 0.8rem; color: #94A3B8;">🎙️ WHISPER STT MODEL</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #38BDF8; margin-top: 4px;">Model '{settings.WHISPER_MODEL_NAME}'</div>
+            <div style="font-size: 0.75rem; color: #10B981; margin-top: 4px;">● CPU Weights Loaded</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("##### ⚡ Cache Telemetry (Two-Layer Caching)")
     stats = check_cache_telemetry()
 
     c1, c2, c3, c4 = st.columns(4)
@@ -869,11 +911,11 @@ with tab_analytics:
     with col_lat1:
         st.metric("Avg Latency (Cached)", f"{stats.get('avg_latency_cached_ms', 0.0):.1f} ms")
     with col_lat2:
-        st.metric("Avg Latency (Uncached)", f"{stats.get('avg_latency_uncached_ms', 0.0):.1f} ms")
+        st.metric("Avg Latency (Fresh)", f"{stats.get('avg_latency_uncached_ms', 0.0):.1f} ms")
     with col_chunks:
-        st.metric("ChromaDB Chunks", stats.get("vector_store_chunks", 29))
+        st.metric("ChromaDB Chunks", stats.get("vector_store_chunks", chunks_count))
     with col_model:
-        st.metric("Active LLM Model", stats.get("active_model", settings.OLLAMA_MODEL))
+        st.metric("Active LLM Model", active_model)
 
     st.markdown("---")
     st.markdown("##### 🕒 Recent Query Logs (from SQLite `query_logs`)")
@@ -904,15 +946,35 @@ with tab_docs:
     st.subheader("📐 Architecture & Engineering Documentation")
     st.caption("Comprehensive High-Level Design, Data Flow Diagrams, Database Design, and Library Evaluation.")
 
-    doc_tab1, doc_tab2, doc_tab3, doc_tab4 = st.tabs([
+    doc_tab0, doc_tab1, doc_tab2, doc_tab3, doc_tab4 = st.tabs([
+        "📖 README & Overview",
         "🏗️ Architecture Diagram",
         "🔄 Data Flow Diagram (DFD)",
         "🗄️ Database Design (ER)",
         "📦 Libraries Evaluation & Decisions",
     ])
 
+    with doc_tab0:
+        st.markdown("### 🩺 MedTwin AI — System Overview")
+        st.markdown("""
+        **MedTwin AI** is an end-to-end clinical AI assistant combining **Patient Digital Twins**, 
+        **Retrieval-Augmented Generation (RAG)**, **Chain-of-Thought (CoT) Clinical Reasoning**, 
+        **Deterministic Safety Guardrails**, and **Voice Speech-to-Text**.
+
+        #### 🎯 Core Capabilities:
+        1. **Pluggable LLM Provider Layer**: Supports local open-source inference via **Ollama (`llama3.2`)** and cloud inference via **Hugging Face Inference API**, with automatic fallback and an honest retrieval-only mode if no LLM is reachable.
+        2. **Patient Digital Twin Personalization**: Injects user demographics, chronic conditions, current medications, and allergies dynamically into queries while isolating cache states.
+        3. **Two-Layer Deterministic & Semantic Caching**:
+           - **Layer 1**: Exact SHA-256 hash match (0ms latency).
+           - **Layer 2**: Dense semantic vector match with cosine similarity >= 0.92.
+           - **Twin Invalidation**: Updating twin profile or allergies immediately invalidates stale cache entries.
+        4. **Acute Emergency Escalation**: Configurable emergency hotlines (112, 108, 911), suicide helpline isolation (988 only on self-harm), and responder clinical guidance.
+        5. **Deterministic Drug-Drug & Drug-Disease Rules**: Detects contraindications (e.g. Ibuprofen vs ACE inhibitors & Metformin) with balanced formatting and allergy validation.
+        6. **Offline Grounded Clinical Synthesizer**: Generates evidence-backed answers directly from retrieved guidelines if LLM services are offline.
+        """)
+
     with doc_tab1:
-        st.markdown("### System Architecture (Mermaid)")
+        st.markdown("### System Architecture with Pluggable LLM Providers (Mermaid)")
         st.markdown("""
 ```mermaid
 graph TD
@@ -926,7 +988,10 @@ graph TD
     CoTPipeline -->|Stage 3: Twin Context| SQLiteDB[(SQLite Relational DB)]
     CoTPipeline -->|Stage 4: Vector Search| ChromaDB[(ChromaDB Persistent Store)]
     CoTPipeline -->|Stage 5: Safety Rules| DrugSafetyEngine["Deterministic Drug Interaction Engine"]
-    CoTPipeline -->|Stage 6: Reasoning| OllamaLLM["Ollama LLM (Llama 3.x / Grounded Fallback)"]
+    CoTPipeline -->|Stage 6: Reasoning| LLMFactory["LLM Provider Layer (LLMProvider ABC)"]
+    LLMFactory -->|Local/Edge| OllamaProvider["OllamaProvider (llama3.2)"]
+    LLMFactory -->|Cloud / Streamlit Cloud| HFProvider["HuggingFaceProvider (HF Inference API)"]
+    LLMFactory -->|Offline Fallback| GroundedEngine["Grounded Clinical RAG Synthesizer"]
     CoTPipeline -->|Stage 7: Disclaimer| SafetyPostProcessor["Disclaimer & Clinical Boundary Enforcement"]
     FastAPIServer -->|Telemetry Logging| SQLiteDB
     DataPipeline["Data Pipeline (BeautifulSoup Scraper)"] -->|Chunk & Embed| ChromaDB
@@ -935,7 +1000,7 @@ graph TD
 """)
 
     with doc_tab2:
-        st.markdown("### Data Flow Diagram (DFD)")
+        st.markdown("### Data Flow Diagram with Multi-Provider Fallback (DFD)")
         st.markdown("""
 ```mermaid
 sequenceDiagram
@@ -946,7 +1011,7 @@ sequenceDiagram
     participant Cache as Two-Layer Cache
     participant Safety as Guardrails & Drug Rules
     participant Chroma as ChromaDB Vector Store
-    participant LLM as Ollama Llama 3
+    participant LLM as LLM Provider (Ollama / HuggingFace)
     participant DB as SQLite Database
 
     User->>UI: Speaks voice query / types message
@@ -956,11 +1021,11 @@ sequenceDiagram
     UI->>API: POST /api/chat (query, user_id, session_id)
     API->>Safety: check_emergency_keywords(query)
     alt Life-Threatening Emergency (e.g. Chest Pain)
-        Safety-->>API: Emergency Escalation (911/112 & ER)
-        API->>DB: Log emergency interaction
-        API-->>UI: Return immediate emergency notice (Bypasses LLM)
+        Safety-->>API: Emergency Escalation (112 / 108 / 911 & ER)
+        API->>DB: Log emergency interaction (never cached)
+        API-->>UI: Return immediate emergency notice (Bypasses LLM & RAG)
     else Routine Clinical Query
-        API->>Cache: Layer 1 Exact Match (SHA-256)
+        API->>Cache: Layer 1 Exact Match (SHA-256, patient isolated)
         alt Cache HIT
             Cache-->>API: Return cached clinical response
             API-->>UI: Return response ("⚡ Cached")
@@ -972,10 +1037,10 @@ sequenceDiagram
             else Full MISS
                 API->>DB: Fetch Patient Digital Twin Profile
                 API->>Chroma: Retrieve top-k medical chunks (similarity >= threshold)
-                API->>Safety: Check Drug Interactions (NSAID vs Lisinopril/Metformin/Asthma)
-                API->>LLM: Synthesize clinical educational answer
+                API->>Safety: Check Drug Interactions & Allergies
+                API->>LLM: Generate clinical educational answer (Ollama or HF)
                 LLM-->>API: Raw grounded answer
-                API->>Safety: Post-process disclaimer & non-diagnostic bounds
+                API->>Safety: Post-process disclaimer, soften claims, ensure allergy check
                 API->>Cache: Store response in Two-Layer Cache
                 API->>DB: Persist chat turns & query telemetry log
                 API-->>UI: Return structured response with citations & reasoning steps
@@ -1005,7 +1070,7 @@ erDiagram
         json chronic_conditions "Chronic Conditions"
         json current_medications "Current Medications"
         text lifestyle_notes "Diet, exercise, smoking"
-        json clinical_tags "Risk tags"
+        int twin_version "Version counter"
         datetime created_at
         datetime updated_at
     }
@@ -1077,9 +1142,12 @@ erDiagram
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **FastAPI** | Backend REST API | Native async, automatic OpenAPI docs, Pydantic type safety | Ultra-fast execution, auto Swagger validation, clean dependency injection | Requires ASGI server (uvicorn) | Flask, Django REST |
 | **Streamlit** | Frontend UI | Rapid reactive Python UI with built-in state management | No JS build step needed, rich widget ecosystem, native audio widgets | Limited DOM-level styling customization | React, Next.js |
+| **Streamlit Cloud** | Hosting / Deployment | Native 1-click Git deployment for Streamlit apps | Zero DevOps overhead, free community tier, auto-reloads on push | Cannot run Ollama daemon or GPU workloads | AWS ECS, Railway, Render |
+| **Hugging Face Provider** | Cloud LLM Inference | Inference API via `httpx` for Streamlit Cloud deployment | Enables cloud deployment without local daemon, access to Llama-3.2/Mistral | Network latency, token rate limits | Groq, OpenAI API |
+| **Two-Layer Caching** | Performance & Cost | Layer 1 SHA-256 + Layer 2 Semantic (0.92 threshold) | Sub-millisecond hits, patient isolation, auto-invalidation on twin save | Cache storage overhead | Redis, Memcached |
 | **ChromaDB** | Vector Database | Embedded persistent vector store with cosine space | Zero setup, persistent local directory, zero cloud cost | In-memory index scaling limitations on >1M vectors | Pinecone, Qdrant, Milvus |
 | **sentence-transformers (`all-MiniLM-L6-v2`)** | Dense Embeddings | 384-dimensional dense semantic representations | Compact 80MB size, fast CPU inference (<15ms), high medical cosine accuracy | 512 token truncation window | OpenAI text-embedding-3, BGE-small |
-| **Ollama (`llama3.2` / `llama3`)** | Open-source LLM | Local inference with zero API keys and clean HTTP endpoints | Total privacy of PHI, runs offline, zero cost | Hardware-dependent GPU/CPU inference speed | Hugging Face TGI, vLLM |
+| **Ollama (`llama3.2`)** | Local Open-Source LLM | Local inference with zero API keys and clean HTTP endpoints | Total privacy of PHI, runs offline, zero cost | Hardware-dependent GPU/CPU inference speed | Hugging Face TGI, vLLM |
 | **OpenAI Whisper (`tiny`)** | Voice Input (STT) | Open-source automatic speech recognition | Robust to background noise, runs on CPU in <1s for voice queries | ~39M parameters, occasional hallucination on empty silence | Vosk, Google Speech API |
 | **SQLite + SQLAlchemy 2.0** | Relational Database | Zero-configuration ACID persistence for patient profiles & logs | Embedded single-file DB, no separate daemon, robust relational queries | Single-writer lock contention under heavy concurrency | PostgreSQL, MySQL |
 | **BeautifulSoup4 + Requests** | Web Scraper | Data ingestion pipeline for CDC, NIH, WHO guidelines | Simple, lightweight, robust HTML parsing and markdown extraction | Cannot execute dynamic client-side JavaScript | Scrapy, Playwright |

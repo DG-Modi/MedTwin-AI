@@ -6,21 +6,25 @@ This document outlines the automated testing framework, test suite architecture,
 
 ## 📁 Test Suite Architecture
 
-All automated test suites are located in the [`tests/`](file:///d:/MedTwin-AI/tests/) directory and are configured via [`pytest.ini`](file:///d:/MedTwin-AI/pytest.ini).
+All automated test suites are located in the [`tests/`](tests/) directory and are configured via [`pytest.ini`](pytest.ini).
 
 | Test Module | Category | Description |
 | :--- | :--- | :--- |
-| [`test_api_integration.py`](file:///d:/MedTwin-AI/tests/test_api_integration.py) | **E2E API Integration** | Tests all 10 FastAPI endpoints (`/health`, `/api/ingest`, `/api/search`, `/api/twin`, `/api/twin/{id}`, `/api/twin/{id}/context`, `/api/chat`, `/api/cache/stats`, `/api/transcribe`). |
-| [`test_clinical_safety.py`](file:///d:/MedTwin-AI/tests/test_clinical_safety.py) | **Clinical Safety & Guardrails** | Tests life-threatening emergency escalation (911/112), contraindications, disclaimer enforcement, and prompt injection resistance. |
-| [`test_cache_isolation.py`](file:///d:/MedTwin-AI/tests/test_cache_isolation.py) | **Cache & Privacy** | Tests SHA-256 patient isolation keys (preventing cross-patient data leaks), TTL expiration, LRU eviction, and hit/miss telemetry. |
-| [`test_voice_service.py`](file:///d:/MedTwin-AI/tests/test_voice_service.py) | **Voice & Whisper STT** | Tests audio waveform parsing, in-memory 16kHz mono resampling, OpenAI Whisper model transcription, silent audio rejection, and fallback simulation. |
-| [`test_chat_pipeline.py`](file:///d:/MedTwin-AI/tests/test_chat_pipeline.py) | **Chat Orchestration** | Tests multi-turn conversation threads, session persistence, RAG clinical attribution, and end-to-end response generation. |
-| [`test_rag.py`](file:///d:/MedTwin-AI/tests/test_rag.py) | **RAG & Vector DB** | Tests ChromaDB persistent store, sentence-transformers dense embeddings (`all-MiniLM-L6-v2`), document chunking, and similarity threshold filtering. |
-| [`test_digital_twin.py`](file:///d:/MedTwin-AI/tests/test_digital_twin.py) | **Digital Twin Engine** | Tests patient health profile schemas, SQLite CRUD operations, and personalized prompt context synthesis. |
-| [`test_guardrails.py`](file:///d:/MedTwin-AI/tests/test_guardrails.py) | **Safety Detection** | Unit tests for emergency keyword matching, query sanitization, and emergency advisory templates. |
-| [`test_llm.py`](file:///d:/MedTwin-AI/tests/test_llm.py) | **LLM & Inference** | Tests Ollama client communication, timeout handling, and deterministic clinical fallback generation. |
-| [`test_config.py`](file:///d:/MedTwin-AI/tests/test_config.py) | **Configuration** | Validates environment variable loading, default values, and pydantic settings. |
-| [`conftest.py`](file:///d:/MedTwin-AI/tests/conftest.py) | **Fixtures** | Shared fixtures: `client` (`TestClient(app)`), `test_db_session` (in-memory SQLite), `sample_synthetic_wav`, `sample_patient_profiles`, `fresh_cache`. |
+| [`test_api_integration.py`](tests/test_api_integration.py) | **E2E API Integration** | Tests all 10 FastAPI endpoints (`/health`, `/api/ingest`, `/api/search`, `/api/twin`, `/api/twin/{id}`, `/api/twin/{id}/context`, `/api/chat`, `/api/cache/stats`, `/api/transcribe`). |
+| [`test_llm_providers.py`](tests/test_llm_providers.py) | **LLM Provider Layer** | Tests provider interface, Ollama/HuggingFace selection, auto-fallback order, and honest error on offline services. |
+| [`test_emergency_cleanup.py`](tests/test_emergency_cleanup.py) | **Emergency Protocol** | Tests acute emergency triggers (112, 108, 911), 988 isolation to suicide/self-harm, responder profile injection, and LLM bypass. |
+| [`test_answer_quality.py`](tests/test_answer_quality.py) | **Answer Quality & Guardrails** | Tests markdown bolding balance, rule-based interaction merging, softened phrasing, allergy checks, and single disclaimer. |
+| [`test_twin_cache_allergy_safety.py`](tests/test_twin_cache_allergy_safety.py) | **Twin Cache & Allergy Safety** | Tests patient cache isolation, twin update invalidation, deterministic allergy conflict alerts, and emergency cache bypass. |
+| [`test_clinical_safety.py`](tests/test_clinical_safety.py) | **Clinical Safety & Guardrails** | Tests life-threatening emergency escalation (911/112), contraindications, disclaimer enforcement, and prompt injection resistance. |
+| [`test_cache_isolation.py`](tests/test_cache_isolation.py) | **Cache & Privacy** | Tests SHA-256 patient isolation keys (preventing cross-patient data leaks), TTL expiration, LRU eviction, and hit/miss telemetry. |
+| [`test_voice_service.py`](tests/test_voice_service.py) | **Voice & Whisper STT** | Tests audio waveform parsing, in-memory 16kHz mono resampling, OpenAI Whisper model transcription, silent audio rejection, and fallback simulation. |
+| [`test_chat_pipeline.py`](tests/test_chat_pipeline.py) | **Chat Orchestration** | Tests multi-turn conversation threads, session persistence, RAG clinical attribution, and end-to-end response generation. |
+| [`test_rag.py`](tests/test_rag.py) | **RAG & Vector DB** | Tests ChromaDB persistent store, sentence-transformers dense embeddings (`all-MiniLM-L6-v2`), document chunking, and similarity threshold filtering. |
+| [`test_digital_twin.py`](tests/test_digital_twin.py) | **Digital Twin Engine** | Tests patient health profile schemas, SQLite CRUD operations, and personalized prompt context synthesis. |
+| [`test_guardrails.py`](tests/test_guardrails.py) | **Safety Detection** | Unit tests for emergency keyword matching, query sanitization, and emergency advisory templates. |
+| [`test_llm.py`](tests/test_llm.py) | **LLM & Inference** | Tests Ollama client communication, timeout handling, and deterministic clinical fallback generation. |
+| [`test_config.py`](tests/test_config.py) | **Configuration** | Validates environment variable loading, default values, and pydantic settings. |
+| [`conftest.py`](tests/conftest.py) | **Fixtures** | Shared fixtures: `client` (`TestClient(app)`), `test_db_session` (in-memory SQLite), `sample_synthetic_wav`, `sample_patient_profiles`, `fresh_cache`. |
 
 ---
 

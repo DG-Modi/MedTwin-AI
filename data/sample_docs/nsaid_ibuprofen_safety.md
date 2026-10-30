@@ -9,8 +9,8 @@ Ibuprofen is a non-steroidal anti-inflammatory drug (NSAID) that non-selectively
 3. **Renal Toxicity & Acute Kidney Injury**: Prostaglandins maintain renal blood flow by dilating afferent arterioles. NSAIDs induce renal ischemia, sodium/fluid retention, and elevation of systemic blood pressure.
 
 ## Critical Contraindications & Interactions
-- **Hypertension & ACE Inhibitors (Lisinopril)**: Ibuprofen directly antagonizes the antihypertensive effect of Lisinopril and dramatically escalates the risk of acute renal failure.
-- **Diabetes & Metformin**: Renal impairment induced by Ibuprofen leads to accumulation of Metformin and potential lactic acidosis.
-- **Aspirin-Exacerbated Respiratory Disease (AERD) / Asthma**: In 10–20% of adult asthmatics, NSAIDs trigger violent bronchospasms and anaphylactoid reactions.
+- **Hypertension & ACE Inhibitors (Lisinopril)**: Ibuprofen directly antagonizes the antihypertensive effect of Lisinopril and can increase the risk of acute renal failure.
+- **Diabetes & Metformin**: Renal impairment induced by Ibuprofen can increase the risk of Metformin accumulation and potential lactic acidosis.
+- **Aspirin-Exacerbated Respiratory Disease (AERD) / Asthma**: In 10–20% of adult asthmatics, NSAIDs can trigger bronchospasms and respiratory distress.
 - **Chronic Kidney Disease (CKD)**: NSAIDs should be strictly avoided in patients with eGFR < 60 mL/min/1.73m².
-- **Safer Alternatives**: For mild to moderate pain or headache in hypertensive or diabetic patients on ACE inhibitors, **Acetaminophen (Tylenol)** is generally preferred under medical supervision.
+- **Safer Alternatives**: For mild to moderate pain or headache in hypertensive or diabetic patients on ACE inhibitors, ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you.

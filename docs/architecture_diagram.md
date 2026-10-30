@@ -6,7 +6,7 @@
 graph TD
     subgraph Client["Presentation Layer (Port 8501)"]
         StreamlitApp["Streamlit Frontend (app/frontend/app.py)"]
-        Microphone["Microphone Input (st.audio_input)"]
+        Microphone["Microphone Input (st.audio_input - Visible by Default)"]
         TTS["Audio Read-Aloud (HTML5 SpeechSynthesis)"]
     end
 
@@ -21,19 +21,21 @@ graph TD
         CoT["7-Stage Chain of Thought Pipeline (app/core/cot_pipeline.py)"]
         Guardrails["Clinical Safety & Guardrails (app/core/guardrails.py)"]
         TwinMgr["Digital Twin Engine (app/core/digital_twin.py)"]
-        Cache["Two-Layer Query Cache (app/core/cache.py)"]
+        Cache["Two-Layer Query Cache with Invalidation (app/core/cache.py)"]
     end
 
     subgraph Data["Persistence & Vector Intelligence"]
         Chroma[("ChromaDB Persistent Store (data/chromadb)")]
-        SQLite[("SQLite Database (medtwin.db)")]
+        SQLite[("SQLite / PostgreSQL Database (medtwin.db)")]
         Embeddings["all-MiniLM-L6-v2 (sentence-transformers)"]
     end
 
-    subgraph Inference["Local LLM Inference Layer"]
+    subgraph Inference["Pluggable LLM & Voice Inference Layer"]
         Whisper["OpenAI Whisper-tiny (CPU Speech-to-Text)"]
-        Ollama["Ollama Daemon (Llama 3 / Llama 3.2 - Port 11434)"]
-        GroundedMock["Grounded Clinical Fallback Generator"]
+        LLMFactory["LLM Provider Layer (app/llm/factory.py)"]
+        Ollama["OllamaProvider (llama3.2 - Local Port 11434)"]
+        HF["HuggingFaceProvider (HF Inference API via httpx)"]
+        GroundedRAG["Grounded Clinical RAG Synthesizer (app/rag/synthesizer.py)"]
     end
 
     subgraph Ingestion["Automated Data Pipeline"]
@@ -56,8 +58,10 @@ graph TD
     CoT --> TwinMgr
     CoT --> Embeddings
     CoT --> Chroma
-    CoT --> Ollama
-    Ollama -.->|On Offline/Timeout| GroundedMock
+    CoT --> LLMFactory
+    LLMFactory --> Ollama
+    LLMFactory --> HF
+    LLMFactory -.->|On LLM Unavailable / Offline| GroundedRAG
 
     VoiceSrv --> Whisper
 
@@ -73,7 +77,7 @@ graph TD
 ---
 
 ## 2. Design Principles
-1. **Edge-First & Fully Local**: No cloud API keys or SaaS dependencies required. Operates on standard workstation hardware.
-2. **Deterministic Safety Over Speculation**: Red-flag symptoms and drug contraindications are intercepted by deterministic rule engines, eliminating LLM prompt-jailbreak vulnerability.
+1. **Edge-First & Pluggable Cloud Hybrid**: Operates 100% offline via local Ollama (`llama3.2`) or seamlessly deploys to cloud platforms (Streamlit Cloud) via the Hugging Face Inference API.
+2. **Deterministic Safety Over Speculation**: Red-flag symptoms and drug contraindications are intercepted by deterministic rule engines with configurable numbers (112, 108, 911), eliminating LLM jailbreak vulnerabilities.
 3. **Traceable Reasoning**: Each step of the 7-stage CoT pipeline is recorded and exposed to the user in a collapsible panel for clinical auditability.
-4. **Context Isolation**: Multi-patient cache isolation prevents PHI leakage across consultation threads.
+4. **Context Isolation**: Multi-patient cache isolation keys bind the patient ID and twin version, preventing PHI leakage and immediately invalidating stale cache on profile saves.

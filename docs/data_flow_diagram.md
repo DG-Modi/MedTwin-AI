@@ -8,7 +8,7 @@ graph LR
     User([Patient / Clinician]) -->|Voice WAV / Text Query| MedTwinAI[MedTwin AI Medical Assistant]
     MedTwinAI -->|Personalized Educational Response + Citations| User
     CDC_NIH([CDC / NIH / WHO Web Sources]) -->|Clinical Guidelines HTML/MD| MedTwinAI
-    MedTwinAI -->|Audit Logs & Telemetry| SQLite[(Local SQLite Database)]
+    MedTwinAI -->|Audit Logs & Telemetry| SQLite[(Local SQLite / PostgreSQL Database)]
 ```
 
 ---
@@ -25,22 +25,22 @@ sequenceDiagram
     participant Cache as Two-Layer Cache
     participant Safety as Guardrails & Drug Rules
     participant Chroma as ChromaDB Vector Store
-    participant Ollama as Ollama Llama 3
+    participant LLM as LLM Provider (Ollama / HuggingFace / Fallback)
     participant DB as SQLite DB
 
-    User->>Frontend: Enters query or records voice via mic
+    User->>Frontend: Enters query or speaks into microphone
     opt Voice Recording
-        Frontend->>Frontend: Whisper-tiny audio transcription (CPU)
+        Frontend->>Frontend: Whisper-tiny CPU transcription (Auto-submits to chat)
     end
     Frontend->>Backend: POST /api/chat (user_id, session_id, message)
-    Backend->>Safety: detect_emergency(message)
+    Backend->>Safety: check_emergency_keywords(message)
     alt Emergency Red Flag Detected (e.g. crushing chest pain)
-        Safety-->>Backend: Urgent 911 / 112 notification + ER guidance
-        Backend->>DB: Log emergency interaction in chat_messages & query_logs
-        Backend-->>Frontend: Immediate emergency response (Bypasses LLM inference)
-    else Non-Emergency Inquiry
+        Safety-->>Backend: Immediate emergency protocol (112, 108, 911) + Responder brief with twin conditions
+        Backend->>DB: Log emergency interaction in chat_messages & query_logs (Never cached)
+        Backend-->>Frontend: Immediate emergency response (Bypasses LLM & RAG)
+    else Routine Clinical Inquiry
         Backend->>DB: Fetch Patient Digital Twin context (allergies, meds, conditions)
-        Backend->>Cache: Layer 1 Exact Match (SHA-256)
+        Backend->>Cache: Layer 1 Exact Match (SHA-256 patient isolation key)
         alt Cache HIT (Layer 1)
             Cache-->>Backend: Return cached answer (0ms)
             Backend->>DB: Record Cache HIT in query_logs
@@ -52,17 +52,21 @@ sequenceDiagram
                 Backend->>DB: Record Semantic HIT in query_logs
                 Backend-->>Frontend: Return response ("⚡ Cached SEMANTIC")
             else Full MISS
+                Backend->>Safety: Deterministic Allergy Conflict Check
+                alt Direct Allergy Conflict (e.g. Ibuprofen allergy)
+                    Safety-->>Backend: Enforce ALLERGY CONFLICT alert at top of response
+                end
                 Backend->>Chroma: Similarity search with all-MiniLM-L6-v2 (top_k=3)
                 Chroma-->>Backend: Top-k clinical chunks + similarity scores
                 Backend->>Safety: Check Drug Interactions (NSAID vs Lisinopril/Metformin/Asthma)
-                Backend->>Ollama: POST /api/generate (RAG excerpts + Twin Context + Query)
-                Ollama-->>Backend: Grounded clinical response text
-                Backend->>Safety: post_process_safety (Softens diagnosis + appends disclaimer)
-                Backend->>Cache: Store response in Layer 1 & index in Layer 2
+                Backend->>LLM: generate(prompt) [Ollama -> Hugging Face -> Grounded Synthesizer]
+                LLM-->>Backend: Grounded clinical response text
+                Backend->>Safety: post_process_safety (soften claims, balanced markdown, single disclaimer)
+                Backend->>Cache: Store non-emergency response in Layer 1 & index in Layer 2
                 Backend->>DB: Persist chat turns & query telemetry log
                 Backend-->>Frontend: Return structured response (answer, citations, CoT steps)
             end
         end
     end
-    Frontend-->>User: Display answer, collapsible reasoning steps, and citation links
+    Frontend-->>User: Display answer, collapsible reasoning steps, citation links, and TTS Read Aloud
 ```

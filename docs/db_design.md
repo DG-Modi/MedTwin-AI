@@ -20,6 +20,7 @@ erDiagram
         json current_medications "Active prescriptions & dosages list"
         text lifestyle_notes "Dietary adherence, exercise, smoking"
         json clinical_tags "Risk categorization tags"
+        int twin_version "Incremental version counter for cache invalidation"
         datetime created_at "Record creation UTC"
         datetime updated_at "Last modification UTC"
     }

@@ -23,9 +23,13 @@ def check_emergency_keywords(query: str) -> Tuple[bool, Optional[str]]:
     # Specific acute clinical emergency patterns
     acute_patterns = [
         (r"\b(crushing|severe)\s+(chest\s+pain|pressure)\b", "chest pain"),
+        (r"\bchest\s+(pain|pressure|tightness)\b", "chest pain"),
+        (r"\bchest\s+(feels\s+tight|tightness).*(sweat|sweating)\b", "chest tightness and sweating"),
+        (r"\b(sweat|sweating).*chest\s+(feels\s+tight|tightness)\b", "chest tightness and sweating"),
         (r"\b(having|think.*is having)\s+a\s+heart\s+attack\b", "heart attack"),
-        (r"\bcan('?t|not)\s+breathe\b", "difficulty breathing"),
+        (r"\bcan('?t|not)\s+breathe\b", "cannot breathe"),
         (r"\bdifficulty\s+breathing\b", "difficulty breathing"),
+        (r"\bsevere\s+shortness\s+of\s+breath\b", "severe shortness of breath"),
         (r"\blips\s+are\s+turning\s+blue\b", "difficulty breathing"),
         (r"\bhigh\s+pitched\s+wheeze\b", "difficulty breathing"),
         (r"\bsudden(ly)?\s+(numb|weak|confused|blind|slurred)\b", "stroke symptoms"),
@@ -51,27 +55,66 @@ def check_emergency_keywords(query: str) -> Tuple[bool, Optional[str]]:
     return False, None
 
 
-def detect_emergency(query: str) -> Tuple[bool, Optional[str]]:
+def detect_emergency(
+    query: str,
+    twin_profile: Optional[Dict[str, Any]] = None,
+) -> Tuple[bool, Optional[str]]:
     """Wrapper matching detect_emergency contract returning (is_emergency, emergency_notice)."""
     triggered, keyword = check_emergency_keywords(query)
     if triggered:
-        notice = format_emergency_response(matched_keyword=keyword)
+        notice = format_emergency_response(matched_keyword=keyword, twin_profile=twin_profile, query=query)
         return True, notice
     return False, None
 
 
-def format_emergency_response(matched_keyword: Optional[str] = None) -> str:
-    """Formats an urgent emergency medical escalation message directing user to 911/112 and nearest ER."""
+def format_emergency_response(
+    matched_keyword: Optional[str] = None,
+    twin_profile: Optional[Dict[str, Any]] = None,
+    query: Optional[str] = None,
+) -> str:
+    """Formats an urgent emergency medical escalation message directing user to emergency dispatch services."""
     keyword_clause = f" for suspected **{matched_keyword}**" if matched_keyword else ""
-    return (
-        f"🚨 **CRITICAL MEDICAL EMERGENCY DETECTED**{keyword_clause}!\n\n"
-        f"If you or someone near you is experiencing severe symptoms, **do not wait for an online response**.\n\n"
-        f"1. **IMMEDIATELY CALL 911 (US/Canada), 112 (Europe/International), or your local emergency dispatch service.**\n"
-        f"2. **Proceed directly to the nearest hospital Emergency Room (ER) / Emergency Department.**\n"
-        f"3. If experiencing crushing chest pain, sit or lie down in a position of comfort to minimize stress on the heart while awaiting emergency responders.\n"
-        f"4. If in suicide crisis, dial or text **988** (US/Canada Lifeline) or contact emergency services immediately.\n\n"
-        f"---\n*{settings.MEDICAL_DISCLAIMER}*"
-    )
+    emergency_numbers = getattr(settings, "EMERGENCY_NUMBERS", "112, 108, 911")
+
+    lines = [
+        f"🚨 **CRITICAL MEDICAL EMERGENCY DETECTED**{keyword_clause}!\n",
+        "If you or someone near you is experiencing severe symptoms, **do not wait for an online response**.\n",
+        f"1. **IMMEDIATELY CALL EMERGENCY DISPATCH: {emergency_numbers} (112, 108 in India, or 911 in US/Canada).**",
+        "2. **Proceed directly to the nearest hospital Emergency Room (ER) / Emergency Department.**",
+    ]
+
+    kw_lower = (matched_keyword or "").lower()
+    q_lower = (query or "").lower()
+
+    # Cardiac symptom advice
+    if any(k in kw_lower or k in q_lower for k in ["chest", "heart", "breathe", "breathing", "stroke", "slurred"]):
+        lines.append("3. Sit or lie down in a position of comfort to minimize stress on the heart and respiratory system while awaiting responders.")
+        lines.append("4. **Medication Caution**: Do not take medications without medical approval; **ask the emergency dispatcher before taking any aspirin**.")
+
+    # Patient conditions & medications guidance for responders
+    if twin_profile:
+        conditions = [c for c in twin_profile.get("chronic_conditions", []) if c]
+        meds = [m for m in twin_profile.get("current_medications", []) if m]
+        has_cardiac_risk = any(
+            any(risk in c.lower() for risk in ["diabetes", "hypertension", "heart", "cardiac", "bp", "high blood pressure"])
+            for c in conditions
+        )
+        if has_cardiac_risk or conditions or meds:
+            details_parts = []
+            if conditions:
+                details_parts.append(f"Conditions: {', '.join(conditions)}")
+            if meds:
+                details_parts.append(f"Medications: {', '.join(meds)}")
+            details_str = " | ".join(details_parts)
+            lines.append(f"5. **Tell the responders about your conditions and current medications: {details_str}**.")
+
+    # Suicide line: ONLY when query indicates suicide or self-harm
+    is_suicide = any(k in kw_lower or k in q_lower for k in ["suicide", "kill myself", "end my life", "self-harm"])
+    if is_suicide:
+        lines.append("6. **Suicide & Crisis Lifeline**: Dial or text **988** (US/Canada Lifeline) or contact emergency services immediately.")
+
+    lines.append(f"\n---\n*{settings.MEDICAL_DISCLAIMER}*")
+    return "\n\n".join(lines)
 
 
 def validate_medical_query(query: str) -> Tuple[bool, Optional[str], Optional[str]]:
@@ -260,9 +303,9 @@ def check_drug_interactions(
                 "mechanism": "NSAIDs constrict afferent renal arterioles, while ACE inhibitors dilate efferent arterioles.",
                 "clinical_warning": (
                     "🚨 **CLINICAL DRUG INTERACTION DETECTED**: Your Digital Twin profile is taking **Lisinopril** (ACE Inhibitor). "
-                    "Taking **Ibuprofen (NSAID)** with ACE inhibitors significantly reduces the blood-pressure lowering effect "
-                    "and carries a serious risk of **acute kidney injury (AKI)** and fluid retention. "
-                    "Consult your doctor before taking NSAIDs; Acetaminophen (Tylenol) is often considered as a safer alternative."
+                    "Taking **Ibuprofen (NSAID)** with ACE inhibitors can reduce the blood-pressure lowering effect "
+                    "and can increase the risk of acute kidney injury (AKI) and fluid retention. "
+                    "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
                 ),
             })
 
@@ -276,8 +319,9 @@ def check_drug_interactions(
                 "mechanism": "NSAID-induced renal impairment can decrease metformin clearance.",
                 "clinical_warning": (
                     "⚠️ **CLINICAL CONTRAINDICATION**: You are taking **Metformin** for diabetes. "
-                    "NSAIDs like **Ibuprofen** can cause acute decreases in renal function, which increases the risk of "
-                    "Metformin accumulation and potentially life-threatening lactic acidosis. Avoid concurrent use without clinical supervision."
+                    "NSAIDs like **Ibuprofen** can cause acute decreases in renal function, which can increase the risk of "
+                    "Metformin accumulation and metabolic complications. "
+                    "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
                 ),
             })
 
@@ -292,8 +336,8 @@ def check_drug_interactions(
                 "mechanism": "Inhibition of COX-1 shunts arachidonic acid to leukotrienes, causing bronchospasm.",
                 "clinical_warning": (
                     "⚠️ **CONTRAINDICATION ALERT**: Your Digital Twin profile records **Asthma / NSAID sensitivity**. "
-                    "In patients with asthma or aspirin sensitivity, NSAIDs like Ibuprofen can provoke severe bronchospasms "
-                    "and acute respiratory distress (Aspirin-Exacerbated Respiratory Disease). Do not take NSAIDs without physician authorization."
+                    "In patients with asthma or aspirin sensitivity, NSAIDs like Ibuprofen can provoke bronchospasms "
+                    "and acute respiratory distress. Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
                 ),
             })
 
@@ -307,7 +351,8 @@ def check_drug_interactions(
                 "mechanism": "Sodium and fluid retention via renal prostaglandin inhibition.",
                 "clinical_warning": (
                     "⚠️ **HYPERTENSION WARNING**: Your Digital Twin profile documents **Hypertension**. "
-                    "Regular or high-dose NSAID use (such as Ibuprofen) promotes renal sodium retention and can significantly raise systemic blood pressure."
+                    "Regular or high-dose NSAID use (such as Ibuprofen) promotes renal sodium retention and can increase the risk of elevated blood pressure. "
+                    "Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you."
                 ),
             })
 
@@ -332,6 +377,27 @@ def append_medical_disclaimer(text: str) -> str:
     return f"{clean_text}\n\n---\n*{settings.MEDICAL_DISCLAIMER}*"
 
 
+def fix_unbalanced_markdown(text: str) -> str:
+    """Ensures markdown bolding (**) is strictly balanced on every line.
+    
+    Fixes orphaned closing ** markers (e.g. lost opening **) and ensures
+    no unbalanced ** tags break rendering.
+    """
+    lines = text.split("\n")
+    fixed = []
+    for line in lines:
+        count = line.count("**")
+        if count % 2 != 0:
+            if re.search(r"^[ \t]*-\s*([^*]+)\*\*:", line):
+                line = re.sub(r"^([ \t]*-\s*)([^*]+)\*\*:", r"\1**\2**:", line)
+            elif re.search(r"^[ \t]*([A-Za-z0-9\s&,()-]+)\*\*:", line):
+                line = re.sub(r"^([ \t]*)([A-Za-z0-9\s&,()-]+)\*\*:", r"\1**\2**:", line)
+            else:
+                line = line + "**"
+        fixed.append(line)
+    return "\n".join(fixed)
+
+
 def post_process_safety(
     response_text: str,
     user_profile: Optional[Dict[str, Any]] = None,
@@ -340,9 +406,13 @@ def post_process_safety(
     """Applies clinical guardrails to LLM output:
 
     1. Checks against documented allergies in Digital Twin.
-    2. Runs deterministic drug-interaction rules.
+    2. Runs deterministic drug-interaction rules and avoids duplicate alerts.
     3. Rewrites or flags diagnostic assertions.
-    4. Guarantees single, clean medical disclaimer.
+    4. Softens extreme language (replaces 'dramatically' and 'life-threatening').
+    5. Drops COX-1/COX-2 mechanism bullet unless asked.
+    6. Ensures allergy check line on medication queries.
+    7. Guarantees single, clean medical disclaimer.
+    8. Guarantees balanced markdown bolding.
     """
     cleaned = sanitize_sensitive_info(response_text)
 
@@ -354,15 +424,35 @@ def post_process_safety(
         flags=re.IGNORECASE,
     )
 
-    # 2. Check allergy contraindications
+    # 2. Soften extreme phrasing
+    cleaned = re.sub(r"\bdramatically\s+escalates\b", "can increase", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bdramatically\b", "substantially", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bpotentially\s+life-threatening\b", "serious", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\blife-threatening\b", "serious", cleaned, flags=re.IGNORECASE)
+
+    q_lower = (query_text or "").lower()
+
+    # 3. Drop COX-1/COX-2 mechanism bullet unless explicitly asked
+    if not any(k in q_lower for k in ["cox", "cox-1", "cox-2", "mechanism", "pharmacodynamics"]):
+        cleaned = re.sub(
+            r"^[ \t]*-\s*.*?(?:COX-1|COX-2|cyclooxygenase).*?$\n?",
+            "",
+            cleaned,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+
+    # 4. Check allergies and interactions
     allergy_warning = None
     interaction_warnings = []
+    allergies = []
     if user_profile:
         allergies = user_profile.get("allergies", [])
         medications = user_profile.get("current_medications", [])
         conditions = user_profile.get("chronic_conditions", [])
 
-        allergy_warning = check_allergy_contraindications(cleaned, allergies)
+        # Remove "Allergy Check" status line before inspecting text for actual contraindicated allergen mentions
+        inspect_text = re.sub(r"(\*\*Allergy Check\*\*:|Allergy Check:)[^\n]*", "", cleaned, flags=re.IGNORECASE)
+        allergy_warning = check_allergy_contraindications(inspect_text, allergies)
 
         if query_text:
             interaction_warnings = check_drug_interactions(
@@ -372,12 +462,15 @@ def post_process_safety(
                 allergies=allergies,
             )
 
-    # 3. Assemble final response blocks
+    # 5. Assemble final response blocks without duplicates
     sections = []
+    already_has_interaction_alerts = "### ⚠️ Interaction Alerts:" in cleaned or "### ⚠️ interaction alerts:" in cleaned.lower()
 
-    if interaction_warnings:
+    if interaction_warnings and not already_has_interaction_alerts:
+        sections.append("### ⚠️ Interaction Alerts:")
         for w in interaction_warnings:
-            sections.append(w["clinical_warning"])
+            sections.append(f"- {w['clinical_warning']}")
+        sections.append("- **Safer Alternatives**: Ask your doctor or pharmacist whether Acetaminophen (Tylenol) is a safer option for you.")
         sections.append("---")
 
     if allergy_warning:
@@ -387,15 +480,26 @@ def post_process_safety(
 
     full_output = "\n\n".join(sections).strip()
 
-    # Deduplicate any pre-existing medical disclaimers to guarantee it is displayed exactly ONCE
-    # Strip existing disclaimer patterns if present in the text
+    # 6. Ensure allergy check line is present for medication queries if not already present
+    is_med_query = any(k in q_lower for k in ["ibuprofen", "advil", "motrin", "naproxen", "aleve", "nsaid", "nsaids", "medication", "drug", "pill", "pain", "headache", "tylenol", "acetaminophen"])
+    if is_med_query and "Allergy Check" not in full_output and "ALLERGY CONFLICT" not in full_output:
+        allergies_str = ", ".join(allergies) if allergies else "documented profile"
+        if full_output.startswith("**Verdict**:"):
+            parts = full_output.split("\n\n", 1)
+            if len(parts) == 2:
+                full_output = f"{parts[0]}\n\n**Allergy Check**: No conflict found with {allergies_str}.\n\n{parts[1]}"
+            else:
+                full_output = f"{full_output}\n\n**Allergy Check**: No conflict found with {allergies_str}."
+        else:
+            full_output = f"**Allergy Check**: No conflict found with {allergies_str}.\n\n{full_output}"
+
+    # 7. Deduplicate any pre-existing medical disclaimers to guarantee it is displayed exactly ONCE
     pattern = re.compile(
         r"(\n*---\n*)?\*?(Disclaimer:\s*)?MedTwin AI is an educational medical-information assistant.*",
         re.DOTALL | re.IGNORECASE,
     )
     full_output = pattern.sub("", full_output).strip()
 
-    # Also clean generic disclaimer statement if present
     generic_pattern = re.compile(
         r"(\n*---\n*)?\*?(Please remember:\s*)?This information is strictly educational and does not constitute a clinical diagnosis.*",
         re.DOTALL | re.IGNORECASE,
@@ -404,4 +508,6 @@ def post_process_safety(
 
     # Append standard disclaimer once at the very end
     full_output = f"{full_output}\n\n---\n*{settings.MEDICAL_DISCLAIMER}*"
-    return full_output
+
+    # 8. Fix any unbalanced markdown
+    return fix_unbalanced_markdown(full_output)

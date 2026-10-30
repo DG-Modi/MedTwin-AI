@@ -4,7 +4,7 @@ Uses pydantic-settings to load environment variables from .env with fallback def
 """
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,12 +25,19 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./medtwin.db"
 
-    # Ollama LLM Configuration
+    # LLM Provider Configuration (ollama | huggingface | auto)
+    LLM_PROVIDER: str = "auto"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3"
+    OLLAMA_MODEL: str = "llama3.2"
     OLLAMA_TIMEOUT_SECONDS: int = 60
+    HF_API_TOKEN: Optional[str] = None
+    HF_MODEL: str = "meta-llama/Llama-3.2-3B-Instruct"
+    HF_TIMEOUT_SECONDS: int = 30
     ENABLE_MOCK_LLM_FALLBACK: bool = False
-    ENABLE_GROUNDED_RAG_SYNTHESIZER: bool = True
+    ENABLE_GROUNDED_RAG_SYNTHESIZER: bool = False
+
+    # Emergency Services Configuration
+    EMERGENCY_NUMBERS: str = "112, 108, 911"
 
     # RAG & Embeddings
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"

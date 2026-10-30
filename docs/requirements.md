@@ -1,86 +1,71 @@
 # Requirements Document: MedTwin AI
 
 ## 1. Project Overview & Problem Statement
-MedTwin AI is an open-source, edge-ready clinical conversational assistant designed for educational medical information support (Problem Statement 2). It combines **Retrieval-Augmented Generation (RAG)**, **Patient Digital Twins**, **Voice Input (Whisper)**, **Two-Layer Caching**, and an **Explicit 7-Stage Chain of Thought (CoT)** pipeline to deliver safe, evidence-grounded medical guidance.
+MedTwin AI is an open-source, edge-first clinical conversational assistant designed for educational medical information support (Problem Statement 2). It combines **Retrieval-Augmented Generation (RAG)**, **Patient Digital Twins**, **Voice Input (Whisper)**, **Two-Layer Caching**, a **Pluggable Multi-Provider LLM Layer (Ollama & Hugging Face)**, and an **Explicit 7-Stage Chain of Thought (CoT)** pipeline to deliver safe, evidence-grounded medical guidance.
 
 ---
 
-## 2. Functional Requirements
+## 2. Explicit Assumptions
 
-### FR-1: Authoritative Clinical Data Pipeline
-- Automated scraping and ingestion of 8 clinical guidelines from official authorities:
-  - Centers for Disease Control and Prevention (CDC)
-  - National Institutes of Health (NIH / MedlinePlus)
-  - World Health Organization (WHO)
-  - American Diabetes Association (ADA)
-- Coverage: Type 2 Diabetes, Hypertension, NSAID & Ibuprofen Safety, Acute Chest Pain Emergency, DASH Diet, HbA1c & BP targets, Asthma Action Plan, Migraine Differential.
-- Text cleaning, recursive chunking with 100-character overlap, dense embedding with `all-MiniLM-L6-v2`, ChromaDB upsert, and SQLite `documents` logging.
-- Standalone execution via `python -m pipeline.run` and interactive UI execution via "Run Ingestion" button.
-
-### FR-2: Patient Digital Twin Profile Manager
-- Persistent storage of patient health parameters in SQLite:
-  - Unique Patient ID, Name, Age, Gender
-  - Confirmed Allergies (e.g., Penicillin, Peanuts, Sulfa)
-  - Chronic Conditions (e.g., Type 2 Diabetes, Hypertension, Asthma)
-  - Current Prescription & OTC Medications (e.g., Metformin 500mg BID, Lisinopril 10mg QD)
-  - Lifestyle & Dietary Notes (e.g., DASH diet adherence, smoking status)
-- Interactive presets for rapid evaluation (Alex Morgan, Elena Rostova, Marcus Vance).
-- Context injection preview displaying active prompt modifications.
-
-### FR-3: Two-Layer Query Cache & Telemetry
-- **Layer 1 (Exact Match)**: Deterministic 64-character SHA-256 hash derived from normalized query + patient digital twin context.
-- **Layer 2 (Semantic Match)**: Vector cosine similarity threshold (~0.92) comparing query embeddings within the same patient context.
-- Configurable TTL (3600 seconds) and LRU eviction.
-- Performance telemetry recorded in SQLite `query_logs`:
-  - Hit/miss counts, hit ratio, active cache entries.
-  - Average latency cached vs uncached.
-  - Per-stage execution timings (retrieval ms, LLM ms, total latency).
-- Second identical query demonstrably returns in 0ms tagged as `⚡ Cached`.
-
-### FR-4: Explicit 7-Stage Chain of Thought (CoT) Pipeline
-Execution pipeline strictly structured into discrete stages as code:
-1. **Intent Classification**: Identifies clinical category (Emergency, Medication Safety, Nutrition, Biomarker, General).
-2. **Red-Flag & Emergency Escalation**: Regex-driven acute symptom detector (crushing chest pain, slurred speech, dyspnea, suicide crisis).
-3. **Digital Twin Context Injection**: Merges patient profile and highlights clinical risk factors.
-4. **Knowledge Base Retrieval & Scoring**: Queries ChromaDB, calculates cosine similarity, formats citations.
-5. **Deterministic Safety & Contraindications Engine**: Evaluates rule-based interactions (NSAID vs Lisinopril, NSAID vs Metformin, NSAID vs Asthma/Allergies).
-6. **Structured LLM Generation**: Grounded reasoning prompt with citation requirements and insufficient-information handling.
-7. **Disclaimer & Clinical Post-Processing**: Softens diagnostic phrasing and appends clean mandatory medical disclaimer.
-- Renders collapsible **Reasoning steps** panel under each answer displaying concise stage summaries.
-
-### FR-5: Voice Input & Speech-to-Text (STT)
-- OpenAI Whisper (`whisper-tiny`) CPU inference.
-- Direct microphone audio capture via Streamlit `st.audio_input`.
-- In-memory resampler converting arbitrary sample rates and channels to 16kHz mono float32.
-- 1-click test simulated voice query buttons.
-- Auto-send to chat toggle upon speech detection.
-- Audio Read-Aloud (browser SpeechSynthesis) for accessibility.
-
-### FR-6: Knowledge Base Search & Library
-- Direct vector similarity search with confidence score threshold and top-k slider.
-- Complete clinical reference library displaying source documents, URLs, and chunk counts.
+1. **Educational & Non-Diagnostic Scope**: MedTwin AI is strictly an **educational and informational health assistant** and does NOT function as a licensed Software as a Medical Device (SaMD), clinical diagnostic engine, or prescription prescriber.
+2. **Open-Source Weight Philosophy**: The system prioritizes open-weights models (`llama3.2` 3B / `Mistral-7B`, `whisper-tiny` 39M, `all-MiniLM-L6-v2` 80MB) to preserve clinical transparency, reproducibility, and data privacy.
+3. **Pluggable Deployment Environment**: The application runs either completely offline on local hardware via Ollama or in cloud-hosted environments (Streamlit Cloud) using serverless inference via the Hugging Face Inference API.
+4. **Standard CPU Baseline**: Core retrieval, vector matching, SQLite persistence, and speech-to-text inference are designed to execute smoothly on standard multi-core consumer CPUs without requiring a dedicated discrete GPU.
+5. **Patient Responsibility**: The user is responsible for accurately entering their digital twin parameters (allergies, chronic conditions, and medications); the system operates deterministically on the provided record.
 
 ---
 
-## 3. Non-Functional Requirements (NFRs)
-- **NFR-1: Clinical Safety**: Zero prescriptive dosing, zero definitive disease diagnosis.
-- **NFR-2: Privacy & Isolation**: SHA-256 cache keys incorporate patient profile hashes; Patient A's query cache is strictly isolated from Patient B.
-- **NFR-3: Latency**: Cached queries resolve in `< 5ms`; local LLM responses within 2–5 seconds.
-- **NFR-4: Portability & Offline Resilience**: Operates 100% offline using Ollama or embedded grounded fallback with zero required cloud API keys.
-- **NFR-5: Test Coverage**: 80%+ test coverage across unit and integration suites.
+## 3. Scope Definition
+
+### ✅ In-Scope (Delivered Features)
+* **Authoritative Clinical Data Ingestion**: Automated ingestion and recursive chunking of guidelines from CDC, NIH MedlinePlus, WHO, and ADA into ChromaDB with cosine vector indexing.
+* **Patient Digital Twin Engine**: Persistent CRUD storage of demographics, allergies, chronic conditions, medications, and lifestyle notes with dynamic prompt context binding.
+* **Pluggable LLM Provider Layer**: Unified `LLMProvider` interface with `OllamaProvider`, `HuggingFaceProvider`, and auto-fallback chain, guaranteeing honest retrieval-only excerpts if all LLMs are offline.
+* **Deterministic Clinical Guardrails**: Hardcoded drug-drug and drug-disease interaction engine (NSAIDs vs Lisinopril, Metformin, Asthma, and Hypertension) with softened language ("can increase the risk") and allergy check lines.
+* **Acute Emergency Protocol**: Immediate escalation for chest pain, dyspnea, stroke, and hemorrhage with configurable hotlines (112, 108, 911), 988 lifeline isolation, responder briefing with twin conditions, and LLM bypass.
+* **Two-Layer Cache Engine**: Layer 1 Exact SHA-256 (0ms) + Layer 2 Semantic Match (cosine similarity >= 0.92) with strict patient isolation and automatic invalidation on twin updates.
+* **Voice Speech-to-Text**: Built-in Whisper-tiny microphone recorder running on CPU with auto-submit to chat and full-text Read Aloud TTS.
+* **Interactive UI & Observability**: Streamlit frontend with 5 shortened tabs ("Chat & Voice", "Knowledge Search", "Library", "Analytics", "Docs"), startup self-check diagnostics, reasoning steps expanders, and telemetry analytics.
+* **Comprehensive Automated Tests**: 121+ unit and integration tests with pytest-cov code coverage.
+
+### ❌ Out-of-Scope (Explicit Non-Goals)
+* **Direct Clinical Prescriptions**: Modifying prescription dosages, calculating custom milligram regimens, or ordering prescription refills.
+* **Hospital EHR / EMR Live Integration**: Direct bidirectional HL7/FHIR EHR interfaces with hospital electronic medical records.
+* **Telehealth Video Consultations**: WebRTC live video doctor-patient calls.
+* **Medical Device Telemetry Streaming**: Real-time Bluetooth / IoT streaming from ECG monitors or continuous glucose monitors (CGMs).
 
 ---
 
-## 4. Assumptions & Scope Decisions
-- **Assumption 1**: MedTwin AI is strictly an **educational and informational assistant**, NOT a licensed software as a medical device (SaMD).
-- **Assumption 2**: Edge deployment on modern laptop CPU/GPU is supported via lightweight models (`whisper-tiny` 39M, `all-MiniLM-L6-v2` 80MB, `llama3` 8B).
-- **Scope Inclusion**: Focused clinical domains: Type 2 Diabetes, Hypertension, NSAID safety, Heart Attack emergencies, DASH nutrition.
-- **Scope Exclusion**: Hospital EHR HL7/FHIR live integration and direct prescription submission are out of scope for this 20-hour MVP.
+## 4. Deal-Breakers (Zero-Tolerance Safety Constraints)
+
+1. **Emergency Escalation Failure**: Failure to immediately intercept acute life-threatening symptoms (e.g. crushing chest pain, slurred speech, dyspnea, suicide crisis) and direct the user to emergency services (112, 108, 911) is an **absolute deal-breaker**. Emergency responses must **never** be cached and must **bypass LLM generation**.
+2. **Hallucinated or Fabricated Medical Advice**: Inventing clinical facts, recommending unverified home remedies, or citing fake medical guidelines. The system must fail honestly with retrieved excerpts rather than return a fake template.
+3. **Cross-Patient Data Leakage**: Serving one patient's cached query, medications, or health background to another patient is a **critical violation of patient isolation**. Cache keys must incorporate the patient ID and twin version.
+4. **Allergy & Contraindication Neglect**: Advising a user to take a medication that directly conflicts with a documented allergy (e.g., ibuprofen when allergic to ibuprofen) or active prescription (e.g., ibuprofen with Lisinopril) without high-priority warnings and safer alternatives.
+5. **Prescriptive Assertions & Unsoftened Language**: Asserting definitive clinical diagnoses (e.g. "I diagnose you with...") or using extreme hyperbolic phrasing ("dramatically escalates", "life-threatening") instead of evidence-grounded risk communication ("can increase the risk").
+6. **Missing Medical Disclaimer**: Delivering educational advice without the mandatory disclaimer identifying MedTwin AI as an educational assistant and directing the user to consult a physician.
 
 ---
 
-## 5. Deal-Breaker Features
-1. **Emergency Escalation Failure**: Failure to immediately flag crushing chest pain and direct to 911/112 is unacceptable.
-2. **Hallucinated Medical Advice**: Fabricating clinical facts or citing non-existent medical sources is prohibited.
-3. **Cross-Patient Data Leakage**: Returning cached medical context of one patient to another with different clinical parameters is an absolute deal-breaker.
-4. **Prescription Dosing**: Suggesting or adjusting specific medication dosages is prohibited.
+## 5. Functional Requirements (FR) Summary
+
+| Requirement ID | Component | Description |
+| :--- | :--- | :--- |
+| **FR-1** | Clinical Data Pipeline | Scraping, recursive chunking, dense embeddings, and ChromaDB persistence for 8 official CDC/NIH/WHO guidelines. |
+| **FR-2** | Digital Twin Manager | Persistent SQLite CRUD for patient health profiles with version tracking and context synthesis. |
+| **FR-3** | Multi-Provider LLM | Pluggable `LLMProvider` interface supporting Ollama (`llama3.2`), Hugging Face Inference API, and offline Grounded RAG. |
+| **FR-4** | Deterministic Safety | Rule-based engine detecting drug-drug and drug-disease contraindications with alternatives phrased for physician verification. |
+| **FR-5** | Emergency Protocol | Regex-driven acute red-flag interceptor directing users to 112, 108, 911, and nearest emergency room. |
+| **FR-6** | Two-Layer Cache | Dual exact SHA-256 and semantic vector cache with patient isolation and auto-invalidation on twin save. |
+| **FR-7** | Voice STT & TTS | Local Whisper-tiny speech-to-text audio ingestion with auto-submission and HTML5 speech synthesis. |
+| **FR-8** | Traceable CoT | 7-stage chain of thought pipeline rendering collapsible reasoning steps with confidence scores and source citations. |
+
+---
+
+## 6. Non-Functional Requirements (NFR)
+
+* **NFR-1 (Clinical Safety)**: Strict non-diagnostic, non-prescriptive phrasing enforced via post-processing guardrails.
+* **NFR-2 (Privacy & Isolation)**: SHA-256 patient isolation keys prevent cross-patient data sharing.
+* **NFR-3 (Performance & Latency)**: Cached queries resolve in `< 5ms`; local LLM inference under 5s; Whisper-tiny CPU transcription under 1.5s.
+* **NFR-4 (Portability & Cloud Readiness)**: Dual execution paths: 100% offline edge execution via Ollama or cloud deployment via Streamlit Cloud and Hugging Face.
+* **NFR-5 (Test Coverage & Hygiene)**: Automated test suite with 80%+ coverage across core clinical services and guardrails.

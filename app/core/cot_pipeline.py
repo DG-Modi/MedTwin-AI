@@ -83,18 +83,28 @@ class ChainOfThoughtPipeline:
         steps.append(stage_intent)
 
         # ------------------------------------------------------------------
+        # STAGE 3 PRE-LOAD: Digital Twin Context retrieval
+        # ------------------------------------------------------------------
+        profile = get_profile(db, user_id)
+        profile_dict = profile.to_dict() if profile else {}
+
+        # ------------------------------------------------------------------
         # STAGE 2: Red-Flag & Emergency Detection
         # ------------------------------------------------------------------
         t0 = time.time()
         is_emergency, emergency_keyword = check_emergency_keywords(query)
         if is_emergency:
-            emergency_text = format_emergency_response(emergency_keyword)
+            emergency_text = format_emergency_response(
+                matched_keyword=emergency_keyword,
+                twin_profile=profile_dict,
+                query=query,
+            )
             stage_emergency = ReasoningStep(
                 stage="emergency_detection",
-                name="2. Red-Flag & Emergency Escalation",
-                status="bypassed",
-                summary=f"CRITICAL RED FLAG DETECTED for '{emergency_keyword}'. Normal generation bypassed; urgent emergency escalation protocol activated (911/112).",
-                details={"is_emergency": True, "keyword": emergency_keyword},
+                name="2. Red-Flag & Emergency Escalation Check",
+                status="flagged",
+                summary=f"Red-flag check = TRIGGERED with matched keyword '{emergency_keyword}'. Emergency protocol activated: RAG skipped, LLM skipped.",
+                details={"triggered": True, "matched_keyword": emergency_keyword, "rag_skipped": True, "llm_skipped": True},
             )
             steps.append(stage_emergency)
             timings["total_ms"] = round((time.time() - t_start) * 1000, 2)
@@ -137,8 +147,6 @@ class ChainOfThoughtPipeline:
         # ------------------------------------------------------------------
         # STAGE 3: Digital Twin Context Injection
         # ------------------------------------------------------------------
-        profile = get_profile(db, user_id)
-        profile_dict = profile.to_dict() if profile else {}
         twin_context_text = format_twin_context(profile)
 
         conditions_str = ", ".join(profile_dict.get("chronic_conditions", [])) or "None reported"

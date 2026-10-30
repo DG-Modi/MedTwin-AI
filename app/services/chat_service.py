@@ -13,7 +13,7 @@ from app.core.cache import QueryCache, get_cache, generate_cache_key, generate_t
 from app.core.cot_pipeline import ChainOfThoughtPipeline, get_cot_pipeline
 from app.core.digital_twin import get_profile
 from app.rag.embeddings import get_embedding_model
-from app.core.guardrails import detect_emergency
+from app.core.guardrails import detect_emergency, check_emergency_keywords, format_emergency_response
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +75,22 @@ class ChatService:
             )
 
         # 2. Emergency Pre-Execution Check
-        is_emergency, emergency_notice = detect_emergency(raw_message)
+        is_emergency, keyword = check_emergency_keywords(raw_message)
         if is_emergency:
+            profile = get_profile(db, user_id)
+            profile_dict = profile.to_dict() if profile else None
+            emergency_notice = format_emergency_response(
+                matched_keyword=keyword,
+                twin_profile=profile_dict,
+                query=raw_message,
+            )
             reasoning_steps = [
                 ReasoningStep(
                     stage="emergency_detection",
-                    name="Red-Flag & Emergency Escalation",
-                    status="bypassed",
-                    summary="CRITICAL RED FLAG DETECTED. Normal generation bypassed; urgent emergency escalation protocol activated (911/112).",
-                    details={"is_emergency": True},
+                    name="2. Red-Flag & Emergency Escalation Check",
+                    status="flagged",
+                    summary=f"Red-flag check = TRIGGERED with matched keyword '{keyword}'. Emergency protocol activated: RAG skipped, LLM skipped.",
+                    details={"triggered": True, "matched_keyword": keyword, "rag_skipped": True, "llm_skipped": True},
                 )
             ]
             self._save_interaction(
@@ -91,7 +98,7 @@ class ChatService:
                 session_id=session_id,
                 user_id=user_id,
                 user_message=raw_message,
-                assistant_response=emergency_notice or settings.EMERGENCY_NOTICE,
+                assistant_response=emergency_notice,
                 sources=[],
                 reasoning_steps=[s.model_dump() for s in reasoning_steps],
                 is_emergency=True,
@@ -100,7 +107,7 @@ class ChatService:
             )
             return ChatResponse(
                 session_id=session_id,
-                answer=emergency_notice or settings.EMERGENCY_NOTICE,
+                answer=emergency_notice,
                 sources=[],
                 disclaimer=settings.MEDICAL_DISCLAIMER,
                 cached=False,

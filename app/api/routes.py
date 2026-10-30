@@ -25,6 +25,7 @@ from app.core.digital_twin import (
 )
 from app.core.cache import get_cache
 from app.rag.pipeline import get_rag_pipeline
+from app.llm.factory import get_llm_provider
 from app.services.chat_service import ChatService, get_chat_service
 from app.services.voice_service import VoiceService, get_voice_service
 from pipeline.run import run_ingestion_pipeline
@@ -38,11 +39,13 @@ def health_check(db: Session = Depends(get_db)):
     rag = get_rag_pipeline()
     chunks_count = rag.vector_store.count()
     doc_count = db.query(Document).count()
+    llm = get_llm_provider()
     return {
         "status": "healthy",
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "active_model": settings.OLLAMA_MODEL,
+        "active_model": llm.get_display_name(),
+        "llm_provider": llm.name,
         "vector_store_chunks": chunks_count,
         "documents_in_db": doc_count,
         "environment": settings.APP_ENV,
